@@ -64,13 +64,15 @@ function SalonBottomSheet({ item, initialVariant, onClose, restaurantId }: Omit<
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [selectedTime, setSelectedTime] = useState<string>("");
 
-  // Fetch available slots whenever date, staff, or service duration changes
+  // Fetch available slots whenever date, staff, or service changes.
+  // Pass the menu_item_id so the RPC can resolve per-staff duration overrides.
   const duration = item.duration_minutes ?? null;
   const { data: availableSlots, isLoading: slotsLoading } = useAvailableSlots(
     restaurantId,
     selectedDate,
-    duration,
+    duration ?? 30,     // default fallback so query runs even when duration not set
     selectedStaffId,
+    item.id,
   );
 
   // Reset time when date or stylist changes
