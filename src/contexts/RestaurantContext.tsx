@@ -124,8 +124,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         return { status: "not-found" };
       }
 
-      // 3. Session-first: logged-in owner's own restaurant takes priority over
-      //    the env var so that each tenant sees their own data in the dashboard.
+      // 3. Dev/preview env var — when VITE_RESTAURANT_ID is set on a non-production
+      //    host this is a preview build for a specific restaurant. Return immediately
+      //    without waiting for a session so the menu loads with no flash.
+      const fallbackId = import.meta.env.VITE_RESTAURANT_ID;
+      if (fallbackId) return { status: "found", restaurantId: fallbackId };
+
+      // 4. Session-first: logged-in owner's own restaurant takes priority on
+      //    production domains where no env var is set.
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
         const isSuperAdmin = session.user.app_metadata?.super_admin === true;
@@ -138,11 +144,6 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           if (data?.id) return { status: "found", restaurantId: data.id };
         }
       }
-
-      // 4. Dev/preview env var fallback — only used when no session exists
-      //    (e.g. unauthenticated preview of a specific restaurant)
-      const fallbackId = import.meta.env.VITE_RESTAURANT_ID;
-      if (fallbackId) return { status: "found", restaurantId: fallbackId };
 
       return { status: "root" };
     },
