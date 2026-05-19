@@ -265,8 +265,8 @@ function SalonGrid({
             <span className="text-xs text-muted-foreground/50">{catItems.length} services</span>
           </div>
 
-          {/* Edge-to-edge 2-col grid, 1px gap like Instagram */}
-          <div className="grid grid-cols-2 gap-px bg-border">
+          {/* 2-col on mobile/tablet, 4-col on desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
             {catItems.map((item) => (
               <SalonServiceTile
                 key={item.id}
@@ -387,8 +387,8 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
     if (isSalon) {
       return (
         <div className="w-full">
-          <div className="grid grid-cols-2 gap-px bg-border">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+            {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="bg-secondary animate-pulse" style={{ aspectRatio: "1/1" }} />
             ))}
           </div>
