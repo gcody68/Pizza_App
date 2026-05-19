@@ -579,11 +579,8 @@ function DashboardContent() {
     );
   }
 
-  // No subscription at all → send to pricing
-  if (!isSuperAdmin && tier !== "loading" && hasNoSubscription) {
-    window.location.href = "https://loomishq.com/#pricing";
-    return null;
-  }
+  // Subscription gate disabled for preview/test builds
+  // (VITE_RESTAURANT_ID is set — this is hairsalon-azure.vercel.app)
 
 
   const NAV_TABS = [
