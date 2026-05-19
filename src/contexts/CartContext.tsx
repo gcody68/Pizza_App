@@ -10,6 +10,8 @@ export type CartItem = {
   specialInstructions?: string;
   selectedVariant?: ItemVariant;
   selectedOptions?: SelectedOptions;
+  appointmentDate?: string;
+  appointmentTime?: string;
   /** Unique key per cart line — id + variant label so the same item can appear with different variants */
   lineKey: string;
 };
@@ -22,7 +24,7 @@ export type CustomerInfo = {
 
 type CartContextType = {
   items: CartItem[];
-  addItem: (item: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions) => void;
+  addItem: (item: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions, appointmentDate?: string, appointmentTime?: string) => void;
   removeItem: (lineKey: string) => void;
   updateQuantity: (lineKey: string, qty: number) => void;
   updateSpecialInstructions: (lineKey: string, instructions: string) => void;
@@ -59,16 +61,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setPendingVariant(item ? (variant ?? null) : null);
   }, []);
 
-  const addItem = useCallback((menuItem: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions) => {
+  const addItem = useCallback((menuItem: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions, appointmentDate?: string, appointmentTime?: string) => {
     const lineKey = makeLineKey(menuItem.id, variant?.label);
     setItems((prev) => {
       const existing = prev.find((i) => i.lineKey === lineKey);
-      if (existing && !specialInstructions && !options) {
+      if (existing && !specialInstructions && !options && !appointmentDate) {
         return prev.map((i) =>
           i.lineKey === lineKey ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { menuItem, quantity: 1, specialInstructions, selectedVariant: variant, selectedOptions: options, lineKey }];
+      return [...prev, { menuItem, quantity: 1, specialInstructions, selectedVariant: variant, selectedOptions: options, appointmentDate, appointmentTime, lineKey }];
     });
   }, []);
 

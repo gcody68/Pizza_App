@@ -32,6 +32,7 @@ export type MenuItem = {
   is_special: boolean;
   variants: ItemVariant[] | null;
   options: ItemOptionGroup[] | null;
+  duration_minutes: number | null;
 };
 
 export const SERVICE_PERIOD_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "All Day"] as const;

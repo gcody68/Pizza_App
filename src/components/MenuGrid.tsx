@@ -564,7 +564,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
         />
       )}
       {pendingItem && (
-        <OrderCustomizationModal item={pendingItem} initialVariant={pendingVariant} onClose={() => setPendingItem(null)} />
+        <OrderCustomizationModal item={pendingItem} initialVariant={pendingVariant} onClose={() => setPendingItem(null)} isSalon={isSalon} />
       )}
       {lightboxItem && (
         <ImageLightbox

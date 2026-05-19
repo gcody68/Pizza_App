@@ -194,6 +194,8 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  // For salon mode, appointment date/time come from the first cart item (set in the booking modal).
+  // The standalone appointment step is only shown as fallback when items lack this data.
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
   const [apptDateError, setApptDateError] = useState("");
@@ -238,7 +240,20 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
       toast.error("Please wait a moment and try again.");
       return;
     }
-    if (isSalon) { setStep("appointment"); return; }
+    if (isSalon) {
+      // If the booked item already carries date/time from the modal, use those.
+      const firstItem = items[0];
+      if (firstItem?.appointmentDate && firstItem?.appointmentTime) {
+        setAppointmentDate(firstItem.appointmentDate);
+        setAppointmentTime(firstItem.appointmentTime);
+        if (settings?.payment_enabled) { setStep("payment"); return; }
+        await submitOrder(firstItem.appointmentDate, firstItem.appointmentTime);
+        return;
+      }
+      // Fallback: show the standalone appointment picker step.
+      setStep("appointment");
+      return;
+    }
     if (settings?.payment_enabled) { setStep("payment"); return; }
     await submitOrder();
   };
@@ -246,7 +261,7 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
   const handleAppointmentNext = () => {
     if (!validateAppointment()) return;
     if (settings?.payment_enabled) { setStep("payment"); return; }
-    submitOrder();
+    submitOrder(appointmentDate, appointmentTime);
   };
 
   const upsertCustomerLead = async () => {
@@ -258,7 +273,7 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
     });
   };
 
-  const submitOrder = async () => {
+  const submitOrder = async (overrideDate?: string, overrideTime?: string) => {
     console.log("[Cart] submitOrder — payment_enabled:", settings?.payment_enabled, "paymentCompleted:", paymentCompletedRef.current, "demo:", !!demo);
     // If payment is required, it must have been completed via Stripe before this runs
     if (settings?.payment_enabled && !paymentCompletedRef.current) {
@@ -307,8 +322,8 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
         p_customer_email: customerInfo.email.trim() || null,
         p_total: grandTotal,
         p_items: orderItems,
-        p_appointment_date: appointmentDate || null,
-        p_appointment_time: appointmentTime || null,
+        p_appointment_date: (overrideDate || appointmentDate) || null,
+        p_appointment_time: (overrideTime || appointmentTime) || null,
       });
       if (orderErr) throw orderErr;
 
@@ -381,14 +396,19 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
             <h3 className="text-2xl font-serif font-bold text-foreground">
               {isSalon ? "Appointment Booked!" : "Order Placed!"}
             </h3>
-            {isSalon && appointmentDate && appointmentTime && (
-              <div className="flex items-center gap-3 bg-secondary/60 rounded-lg px-4 py-3 text-sm">
-                <CalendarDays className="w-4 h-4 text-gold flex-shrink-0" />
-                <span className="text-foreground font-medium">{appointmentDate}</span>
-                <Clock className="w-4 h-4 text-gold flex-shrink-0" />
-                <span className="text-foreground font-medium">{appointmentTime}</span>
-              </div>
-            )}
+            {isSalon && (() => {
+              const d = appointmentDate || items[0]?.appointmentDate || "";
+              const t = appointmentTime || items[0]?.appointmentTime || "";
+              if (!d && !t) return null;
+              return (
+                <div className="flex items-center gap-3 bg-secondary/60 rounded-lg px-4 py-3 text-sm">
+                  <CalendarDays className="w-4 h-4 text-gold flex-shrink-0" />
+                  <span className="text-foreground font-medium">{d}</span>
+                  <Clock className="w-4 h-4 text-gold flex-shrink-0" />
+                  <span className="text-foreground font-medium">{t}</span>
+                </div>
+              );
+            })()}
             <p className="text-muted-foreground leading-relaxed">
               {isSalon
                 ? (paymentEnabled ? "Payment processed. See you then!" : "We look forward to seeing you. Please arrive a few minutes early.")
