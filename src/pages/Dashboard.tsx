@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
 import { useDemoMode } from "@/contexts/DemoModeContext";
 import { CartProvider } from "@/contexts/CartContext";
-import { useRestaurantSettings, useUpdateSettings, DEFAULT_SERVICE_HOURS, DEFAULT_BUSINESS_HOURS, type ServiceHours, type BusinessHours } from "@/hooks/useRestaurantSettings";
+import { useRestaurantSettings, useUpdateSettings, isSalonBusiness, DEFAULT_SERVICE_HOURS, DEFAULT_BUSINESS_HOURS, type ServiceHours, type BusinessHours } from "@/hooks/useRestaurantSettings";
 import { useRestaurant } from "@/contexts/RestaurantContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban } from "lucide-react";
+import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban } from "lucide-react";
 import { useMenuItems, type MenuItem } from "@/hooks/useMenuItems";
 import MenuItemModal from "@/components/MenuItemModal";
 import { STARTER_ITEMS } from "@/components/StarterContent";
@@ -582,13 +582,14 @@ function DashboardContent() {
   // Subscription gate disabled for preview/test builds
   // (VITE_RESTAURANT_ID is set — this is hairsalon-azure.vercel.app)
 
+  const isSalon = isSalonBusiness(settings);
 
   const NAV_TABS = [
     { id: "profile", label: "Profile", icon: User },
     { id: "branding", label: "Branding", icon: Settings },
     { id: "hours", label: "Hours", icon: Clock },
     { id: "payment", label: "Payment", icon: CreditCard },
-    { id: "kitchen", label: "Kitchen", icon: Monitor },
+    { id: "kitchen", label: isSalon ? "Schedule" : "Kitchen", icon: isSalon ? Scissors : Monitor },
     ...(isSuperAdmin ? [
       { id: "super_admin", label: "Super Admin", icon: Shield },
       { id: "churn_analytics", label: "Churn Analytics", icon: TrendingDown },
@@ -643,8 +644,8 @@ function DashboardContent() {
           onClick={handleKitchenDisplay}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
-          <ChefHat className="w-4 h-4 flex-shrink-0" />
-          Kitchen Display
+          {isSalon ? <Scissors className="w-4 h-4 flex-shrink-0" /> : <ChefHat className="w-4 h-4 flex-shrink-0" />}
+          {isSalon ? "Stylist Dashboard" : "Kitchen Display"}
         </button>
         <button
           onClick={() => setShowChangePassword(true)}
@@ -890,7 +891,7 @@ function DashboardContent() {
                 </div>
                 <div className="flex gap-3">
                   <Button variant="outline" size="sm" onClick={() => setShowImporter(true)} className="flex-1 gap-2 border-border hover:border-primary/40">
-                    <FileSpreadsheet className="w-4 h-4" /> Import Menu
+                    <FileSpreadsheet className="w-4 h-4" /> {isSalon ? "Import Services" : "Import Menu"}
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleSeedDemo} className="flex-1">
                     Load Demo Items
@@ -967,9 +968,9 @@ function DashboardContent() {
                   </div>
                 </div>
 
-                {/* Menu Item Management */}
+                {/* Service / Menu Item Management */}
                 <div className="border-b border-border pb-2 mt-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Menu Items</h3>
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{isSalon ? "Services" : "Menu Items"}</h3>
                 </div>
 
                 {(!menuItems || menuItems.length === 0) ? (
@@ -1011,7 +1012,7 @@ function DashboardContent() {
                   onClick={() => setAddingItemCategory("Lunch")}
                   className="w-full gap-2 border-dashed border-border hover:border-gold/40 hover:text-gold"
                 >
-                  <Plus className="w-4 h-4" /> Add Menu Item
+                  <Plus className="w-4 h-4" /> {isSalon ? "Add Service" : "Add Menu Item"}
                 </Button>
 
                 <div className="pt-4 border-t border-border">
@@ -1179,22 +1180,34 @@ function DashboardContent() {
 
           {activeTab === "kitchen" && (
             <>
-              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">Kitchen Display</h1>
+              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">
+                {isSalon ? "Stylist Dashboard / Schedule Board" : "Kitchen Display"}
+              </h1>
               <div className="space-y-6">
                 <div className="flex items-center justify-between py-2 border border-border rounded-lg px-4">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Kitchen Display System</p>
-                    <p className="text-xs text-muted-foreground">Enable the /kitchen page for your kitchen staff</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {isSalon ? "Schedule Board" : "Kitchen Display System"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isSalon
+                        ? "Enable the /kitchen page to show upcoming appointments for your stylists"
+                        : "Enable the /kitchen page for your kitchen staff"}
+                    </p>
                   </div>
                   <Switch checked={kitchenViewEnabled} onCheckedChange={setKitchenViewEnabled} />
                 </div>
 
                 {kitchenViewEnabled && (
                   <div className="border border-border rounded-lg p-4 bg-secondary/30 space-y-3">
-                    <p className="text-xs text-muted-foreground">Share this link with your kitchen staff. Orders appear in real-time.</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isSalon
+                        ? "Share this link with your stylists. Appointments appear in chronological order, in real-time."
+                        : "Share this link with your kitchen staff. Orders appear in real-time."}
+                    </p>
                     <div className="flex items-center gap-2 bg-secondary rounded-md px-3 py-2">
                       <span className="text-xs font-mono text-gold flex-1 truncate">
-                        {demo ? "Kitchen Display (Demo)" : `${window.location.origin}/kitchen`}
+                        {demo ? (isSalon ? "Stylist Dashboard (Demo)" : "Kitchen Display (Demo)") : `${window.location.origin}/kitchen`}
                       </span>
                       {!demo && (
                         <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/kitchen`); toast.success("Link copied!"); }}>

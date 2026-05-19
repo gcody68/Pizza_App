@@ -4,17 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCart } from "@/contexts/CartContext";
-import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
+import { useRestaurantSettings, isSalonBusiness } from "@/hooks/useRestaurantSettings";
 import { useDecrementStock } from "@/hooks/useMenuItems";
 import { supabase } from "@/integrations/supabase/client";
 import { useDemoMode } from "@/contexts/DemoModeContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
-import { Minus, Plus, Trash2, ShoppingBag, Loader as Loader2, CircleCheck as CheckCircle2, CreditCard, Lock, MessageSquare, Bitcoin, Copy, CheckCheck } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, Loader as Loader2, CircleCheck as CheckCircle2, CreditCard, Lock, MessageSquare, Bitcoin, Copy, CheckCheck, CalendarDays, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { loadStripe, type Stripe, type StripeCardElement } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
-type Step = "cart" | "checkout" | "payment" | "crypto" | "confirmation";
+// Time slots available for salon appointments (hourly, 9 AM – 6 PM)
+const APPOINTMENT_SLOTS = [
+  "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
+  "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+  "5:00 PM", "6:00 PM",
+];
+
+type Step = "cart" | "appointment" | "checkout" | "payment" | "crypto" | "confirmation";
 
 function TaxBreakdown({ subtotal, taxRate, taxAmount, grandTotal, size = "lg" }: {
   subtotal: number; taxRate: number; taxAmount: number; grandTotal: number; size?: "sm" | "lg";
@@ -182,10 +189,15 @@ function StripeCardForm({ grandTotal, subtotal, taxRate, taxAmount, customerName
 export default function CartSidebar({ restaurantId }: { restaurantId?: string | null }) {
   const { items, updateQuantity, removeItem, clearCart, total, isOpen, setIsOpen, customerInfo, setCustomerInfo } = useCart();
   const { data: settings, isLoading: settingsLoading } = useRestaurantSettings(restaurantId);
+  const isSalon = isSalonBusiness(settings);
   const [step, setStep] = useState<Step>("cart");
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [appointmentDate, setAppointmentDate] = useState("");
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [apptDateError, setApptDateError] = useState("");
+  const [apptTimeError, setApptTimeError] = useState("");
   const paymentCompletedRef = useRef(false);
 
   const demo = useDemoMode();
@@ -210,6 +222,15 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
     return valid;
   };
 
+  const validateAppointment = () => {
+    let valid = true;
+    if (!appointmentDate) { setApptDateError("Please select a date"); valid = false; }
+    else setApptDateError("");
+    if (!appointmentTime) { setApptTimeError("Please select a time slot"); valid = false; }
+    else setApptTimeError("");
+    return valid;
+  };
+
   const handlePlaceOrder = async () => {
     console.log("[Cart] handlePlaceOrder — settingsLoading:", settingsLoading, "payment_enabled:", settings?.payment_enabled, "demo:", !!demo);
     if (!validateCheckout()) return;
@@ -217,8 +238,15 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
       toast.error("Please wait a moment and try again.");
       return;
     }
+    if (isSalon) { setStep("appointment"); return; }
     if (settings?.payment_enabled) { setStep("payment"); return; }
     await submitOrder();
+  };
+
+  const handleAppointmentNext = () => {
+    if (!validateAppointment()) return;
+    if (settings?.payment_enabled) { setStep("payment"); return; }
+    submitOrder();
   };
 
   const upsertCustomerLead = async () => {
@@ -279,6 +307,8 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
         p_customer_email: customerInfo.email.trim() || null,
         p_total: grandTotal,
         p_items: orderItems,
+        p_appointment_date: appointmentDate || null,
+        p_appointment_time: appointmentTime || null,
       });
       if (orderErr) throw orderErr;
 
@@ -307,6 +337,10 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
       setStep("cart");
       setNameError("");
       setPhoneError("");
+      setApptDateError("");
+      setApptTimeError("");
+      setAppointmentDate("");
+      setAppointmentTime("");
       setCryptoCopied(false);
       paymentCompletedRef.current = false;
     }, 300);
@@ -317,8 +351,16 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
       <SheetContent className="bg-card border-border flex flex-col w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="font-serif text-gold flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5" />
-            {step === "confirmation" ? "Order Confirmed" : step === "payment" ? "Secure Payment" : step === "crypto" ? "Pay with Crypto" : "Your Order"}
+            {isSalon ? <CalendarDays className="w-5 h-5" /> : <ShoppingBag className="w-5 h-5" />}
+            {step === "confirmation"
+              ? (isSalon ? "Appointment Booked!" : "Order Confirmed")
+              : step === "appointment"
+                ? "Choose Appointment"
+                : step === "payment"
+                  ? "Secure Payment"
+                  : step === "crypto"
+                    ? "Pay with Crypto"
+                    : isSalon ? "Your Services" : "Your Order"}
           </SheetTitle>
         </SheetHeader>
 
@@ -336,11 +378,21 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
               </span>
             )}
             <CheckCircle2 className="w-14 h-14 text-gold" />
-            <h3 className="text-2xl font-serif font-bold text-foreground">Order Placed!</h3>
+            <h3 className="text-2xl font-serif font-bold text-foreground">
+              {isSalon ? "Appointment Booked!" : "Order Placed!"}
+            </h3>
+            {isSalon && appointmentDate && appointmentTime && (
+              <div className="flex items-center gap-3 bg-secondary/60 rounded-lg px-4 py-3 text-sm">
+                <CalendarDays className="w-4 h-4 text-gold flex-shrink-0" />
+                <span className="text-foreground font-medium">{appointmentDate}</span>
+                <Clock className="w-4 h-4 text-gold flex-shrink-0" />
+                <span className="text-foreground font-medium">{appointmentTime}</span>
+              </div>
+            )}
             <p className="text-muted-foreground leading-relaxed">
-              {paymentEnabled
-                ? "Payment processed. Your order is being prepared."
-                : "Please pay when you arrive for pickup."}
+              {isSalon
+                ? (paymentEnabled ? "Payment processed. See you then!" : "We look forward to seeing you. Please arrive a few minutes early.")
+                : (paymentEnabled ? "Payment processed. Your order is being prepared." : "Please pay when you arrive for pickup.")}
             </p>
             <Button onClick={handleClose} className="mt-6 gradient-gold text-primary-foreground font-semibold">
               Done
@@ -382,6 +434,69 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
                 className="w-full gradient-gold text-primary-foreground font-semibold h-12"
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "I've Sent Payment"}
+              </Button>
+              <Button variant="ghost" onClick={() => setStep("checkout")} className="w-full text-muted-foreground">
+                Back
+              </Button>
+            </div>
+          </div>
+
+        ) : step === "appointment" ? (
+          <div className="flex-1 flex flex-col gap-6 pt-4 overflow-y-auto">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2">
+              <CalendarDays className="w-3.5 h-3.5 text-gold" />
+              Select a date and time for your appointment
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5" /> Appointment Date <span className="text-destructive">*</span>
+                </Label>
+                <input
+                  type="date"
+                  value={appointmentDate}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => { setAppointmentDate(e.target.value); setApptDateError(""); }}
+                  className={`w-full bg-secondary border rounded-md px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-gold/60 transition-colors ${apptDateError ? "border-destructive" : "border-border"}`}
+                />
+                {apptDateError && <p className="text-destructive text-xs">{apptDateError}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Time Slot <span className="text-destructive">*</span>
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {APPOINTMENT_SLOTS.map((slot) => (
+                    <button
+                      key={slot}
+                      onClick={() => { setAppointmentTime(slot); setApptTimeError(""); }}
+                      className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                        appointmentTime === slot
+                          ? "bg-gold/20 border-gold/60 text-gold"
+                          : "bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-gold/30"
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+                {apptTimeError && <p className="text-destructive text-xs">{apptTimeError}</p>}
+              </div>
+            </div>
+
+            <div className="mt-auto space-y-3 pb-4">
+              <Button
+                onClick={handleAppointmentNext}
+                disabled={submitting || settingsLoading}
+                className="w-full gradient-gold text-primary-foreground font-semibold h-12 text-base"
+              >
+                {submitting || settingsLoading
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : settings?.payment_enabled
+                    ? <><CreditCard className="w-4 h-4 mr-2" /> Continue to Payment</>
+                    : "Confirm Appointment"}
               </Button>
               <Button variant="ghost" onClick={() => setStep("checkout")} className="w-full text-muted-foreground">
                 Back
@@ -470,7 +585,7 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
             </div>
 
             <div className="border-t border-border pt-4 space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Summary</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{isSalon ? "Appointment Summary" : "Order Summary"}</p>
               {items.map((ci) => {
                 const linePrice = ci.selectedVariant ? ci.selectedVariant.price : Number(ci.menuItem.price);
                 return (
@@ -516,7 +631,7 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
                   ? <Loader2 className="w-5 h-5 animate-spin" />
                   : settings?.payment_enabled
                     ? <><CreditCard className="w-4 h-4 mr-2" />Pay by Card</>
-                    : "Place Order (Pay in Person)"
+                    : isSalon ? "Choose Appointment Time" : "Place Order (Pay in Person)"
                 }
               </Button>
               {cryptoAddress && (
@@ -617,7 +732,7 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
                     className="w-full gradient-gold text-primary-foreground font-semibold h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                     title={isUnpaid ? "Ordering is disabled — subscription inactive" : isOrderCapReached ? "Monthly order cap reached — upgrade to Pro" : undefined}
                   >
-                    {checkoutBlocked ? (isUnpaid ? "Ordering Disabled" : "Order Cap Reached") : "Checkout"}
+                    {checkoutBlocked ? (isUnpaid ? "Ordering Disabled" : "Order Cap Reached") : isSalon ? "Book Appointment" : "Checkout"}
                   </Button>
                 </div>
               </>

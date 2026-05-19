@@ -4,11 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
 import AdminLoginModal from "@/components/AdminLoginModal";
 import KitchenAnalyticsBar from "@/components/KitchenAnalyticsBar";
-import { useRestaurantSettings, getBusinessDayWindow } from "@/hooks/useRestaurantSettings";
-import { Check, Clock, Phone, User, ChefHat, MessageSquare, RotateCcw } from "lucide-react";
+import { useRestaurantSettings, isSalonBusiness, getBusinessDayWindow } from "@/hooks/useRestaurantSettings";
+import { Check, Clock, Phone, User, ChefHat, Scissors, MessageSquare, RotateCcw, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { useDemoMode } from "@/contexts/DemoModeContext";
 
 const KDS_LAST_RESET_KEY = "kds_last_reset_date";
@@ -28,6 +28,8 @@ type OrderWithItems = {
   status: string;
   total: number;
   created_at: string;
+  appointment_date: string | null;
+  appointment_time: string | null;
   order_items: OrderItem[];
 };
 
@@ -219,8 +221,10 @@ function KitchenBoard() {
   const restaurantId = restaurant?.id ?? null;
   const restaurantName = restaurant?.business_name ?? null;
   const businessHours = (restaurant?.business_hours ?? null) as import("@/hooks/useRestaurantSettings").BusinessHours | null;
+  const { data: restaurantSettings } = useRestaurantSettings(restaurantId);
+  const isSalon = isSalonBusiness(restaurantSettings);
 
-  const { data: orders, isLoading: ordersLoading } = useQuery({
+  const { data: rawOrders, isLoading: ordersLoading } = useQuery({
     queryKey: ["kitchen-orders", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
@@ -236,6 +240,15 @@ function KitchenBoard() {
     refetchInterval: 5000,
     enabled: !!restaurantId,
   });
+
+  // For salon: sort appointments chronologically by date + time slot
+  const orders = isSalon && rawOrders
+    ? [...rawOrders].sort((a, b) => {
+        const aKey = `${a.appointment_date ?? "9999"} ${a.appointment_time ?? ""}`;
+        const bKey = `${b.appointment_date ?? "9999"} ${b.appointment_time ?? ""}`;
+        return aKey.localeCompare(bKey);
+      })
+    : rawOrders;
 
   // Daily reset: on first load each day, mark any leftover "pending" orders as completed
   useEffect(() => {
@@ -306,8 +319,8 @@ function KitchenBoard() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <AdminLoginModal open={true} onClose={() => {}} />
         <div className="text-center space-y-4">
-          <ChefHat className="w-16 h-16 text-gold mx-auto" />
-          <h1 className="text-2xl font-serif font-bold text-foreground">Kitchen Display</h1>
+          {isSalon ? <Scissors className="w-16 h-16 text-gold mx-auto" /> : <ChefHat className="w-16 h-16 text-gold mx-auto" />}
+          <h1 className="text-2xl font-serif font-bold text-foreground">{isSalon ? "Stylist Dashboard" : "Kitchen Display"}</h1>
           <p className="text-muted-foreground">Admin access required</p>
         </div>
       </div>
@@ -321,12 +334,14 @@ function KitchenBoard() {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container flex items-center justify-between h-14">
           <div className="flex items-center gap-2">
-            <ChefHat className="w-5 h-5 text-gold" />
-            <span className="font-serif text-lg font-semibold text-gold">Kitchen Display</span>
+            {isSalon ? <Scissors className="w-5 h-5 text-gold" /> : <ChefHat className="w-5 h-5 text-gold" />}
+            <span className="font-serif text-lg font-semibold text-gold">
+              {isSalon ? "Stylist Dashboard" : "Kitchen Display"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">
-              {orders?.length || 0} pending
+              {orders?.length || 0} {isSalon ? "upcoming" : "pending"}
             </span>
             <button
               onClick={async () => {
@@ -338,11 +353,11 @@ function KitchenBoard() {
                   .eq("status", "pending");
                 if (!error) {
                   qc.invalidateQueries({ queryKey: ["kitchen-orders", restaurantId] });
-                  toast.success("Board cleared!");
+                  toast.success(isSalon ? "Schedule cleared!" : "Board cleared!");
                 }
               }}
               className="p-1.5 rounded-md text-muted-foreground hover:text-gold hover:bg-secondary transition-colors"
-              title="Clear all pending orders"
+              title={isSalon ? "Clear all appointments" : "Clear all pending orders"}
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -362,9 +377,9 @@ function KitchenBoard() {
           </div>
         ) : orders?.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
-            <ChefHat className="w-16 h-16 opacity-20" />
-            <p className="text-lg">No pending orders</p>
-            <p className="text-sm">New orders will appear here automatically</p>
+            {isSalon ? <Scissors className="w-16 h-16 opacity-20" /> : <ChefHat className="w-16 h-16 opacity-20" />}
+            <p className="text-lg">{isSalon ? "No upcoming appointments" : "No pending orders"}</p>
+            <p className="text-sm">{isSalon ? "New bookings will appear here automatically" : "New orders will appear here automatically"}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -374,15 +389,34 @@ function KitchenBoard() {
                 className="bg-card border border-border rounded-lg overflow-hidden animate-fade-in"
               >
                 <div className="bg-secondary px-4 py-3 border-b border-border">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-                      </span>
+                  {isSalon && (order.appointment_date || order.appointment_time) ? (
+                    <div className="mb-3">
+                      {order.appointment_date && (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <CalendarDays className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+                          <span className="text-sm font-bold text-gold">
+                            {format(parseISO(order.appointment_date), "EEE, MMM d")}
+                          </span>
+                        </div>
+                      )}
+                      {order.appointment_time && (
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+                          <span className="text-base font-bold text-foreground">{order.appointment_time}</span>
+                        </div>
+                      )}
                     </div>
-                    <span className="text-gold font-bold text-sm">${Number(order.total).toFixed(2)}</span>
-                  </div>
+                  ) : (
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <span className="text-gold font-bold text-sm">${Number(order.total).toFixed(2)}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 mb-1">
                     <User className="w-4 h-4 text-gold flex-shrink-0" />
@@ -392,6 +426,11 @@ function KitchenBoard() {
                     <Phone className="w-4 h-4 text-gold flex-shrink-0" />
                     <span className="font-bold text-foreground text-base tracking-wide">{order.customer_phone}</span>
                   </div>
+                  {isSalon && (
+                    <div className="mt-2 text-right">
+                      <span className="text-gold font-bold text-sm">${Number(order.total).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 space-y-3">
@@ -421,7 +460,7 @@ function KitchenBoard() {
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-sm h-10"
                   >
                     <Check className="w-4 h-4 mr-2" />
-                    Mark as Ready
+                    {isSalon ? "Mark as Complete" : "Mark as Ready"}
                   </Button>
                 </div>
               </div>

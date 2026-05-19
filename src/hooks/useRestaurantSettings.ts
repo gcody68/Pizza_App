@@ -53,7 +53,13 @@ export type RestaurantSettings = {
   custom_domain_verified: boolean | null;
   sales_tax_rate: number | null;
   billing_email: string | null;
+  business_type: string | null;
 };
+
+/** Returns true when this tenant is configured as a salon/beauty business. */
+export function isSalonBusiness(settings: RestaurantSettings | null | undefined): boolean {
+  return settings?.business_type === "salon";
+}
 
 /**
  * Load restaurant settings. Two modes:

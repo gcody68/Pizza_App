@@ -8,6 +8,7 @@ import {
   type ItemVariant,
 } from "@/hooks/useMenuItems";
 import { useMealPeriodConfig } from "@/hooks/useMealPeriodConfig";
+import { useRestaurantSettings, isSalonBusiness } from "@/hooks/useRestaurantSettings";
 import { useAdmin } from "@/contexts/AdminContext";
 import { useCart } from "@/contexts/CartContext";
 import { Plus, UtensilsCrossed, ShoppingBag, Clock, ToggleLeft, Zap, ZoomIn, Star } from "lucide-react";
@@ -94,6 +95,7 @@ function AddToOrderButton({
   minutesUntilEnd,
   selectedVariant,
   onAdd,
+  isSalon,
 }: {
   item: MenuItem;
   periodLabel: string;
@@ -102,6 +104,7 @@ function AddToOrderButton({
   minutesUntilEnd: number | null;
   selectedVariant: ItemVariant | null;
   onAdd: (e: React.MouseEvent) => void;
+  isSalon?: boolean;
 }) {
   const soldOut = isSoldOut(item);
 
@@ -134,7 +137,7 @@ function AddToOrderButton({
       >
         <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         <span className="sm:hidden">Add</span>
-        <span className="hidden sm:inline">{selectedVariant ? `Add ${selectedVariant.label}` : "Add to Order"}</span>
+        <span className="hidden sm:inline">{isSalon ? "Book Service" : selectedVariant ? `Add ${selectedVariant.label}` : "Add to Order"}</span>
       </button>
     </div>
   );
@@ -142,6 +145,8 @@ function AddToOrderButton({
 
 export default function MenuGrid({ restaurantId }: { restaurantId?: string | null }) {
   const { data: items, isLoading } = useMenuItems(restaurantId);
+  const { data: settings } = useRestaurantSettings(restaurantId);
+  const isSalon = isSalonBusiness(settings);
   const { isAdmin } = useAdmin();
   const { setPendingItem, pendingItem, pendingVariant } = useCart();
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -241,7 +246,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
     <section className="container py-12 space-y-12">
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-serif font-bold text-gold">
-          Our Menu
+          {isSalon ? "Our Services" : "Our Menu"}
         </h2>
         {!isAdmin && (
           <div className="flex flex-col items-center gap-1">
@@ -353,6 +358,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
                             minutesUntilEnd={periodStatus.minutesUntilEnd}
                             selectedVariant={cardVariant}
                             onAdd={(e) => handleAddToCart(e, item)}
+                            isSalon={isSalon}
                           />
                         )}
                       </div>
@@ -498,6 +504,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
                             minutesUntilEnd={periodStatus.minutesUntilEnd}
                             selectedVariant={cardVariant}
                             onAdd={(e) => handleAddToCart(e, item)}
+                            isSalon={isSalon}
                           />
                         )}
                       </div>
