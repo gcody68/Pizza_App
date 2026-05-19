@@ -324,6 +324,7 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
         p_items: orderItems,
         p_appointment_date: (overrideDate || appointmentDate) || null,
         p_appointment_time: (overrideTime || appointmentTime) || null,
+        p_staff_id: items[0]?.staffId ?? null,
       });
       if (orderErr) throw orderErr;
 
@@ -399,13 +400,22 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
             {isSalon && (() => {
               const d = appointmentDate || items[0]?.appointmentDate || "";
               const t = appointmentTime || items[0]?.appointmentTime || "";
+              const stylist = items[0]?.staffName || "";
               if (!d && !t) return null;
               return (
-                <div className="flex items-center gap-3 bg-secondary/60 rounded-lg px-4 py-3 text-sm">
-                  <CalendarDays className="w-4 h-4 text-gold flex-shrink-0" />
-                  <span className="text-foreground font-medium">{d}</span>
-                  <Clock className="w-4 h-4 text-gold flex-shrink-0" />
-                  <span className="text-foreground font-medium">{t}</span>
+                <div className="space-y-2 w-full">
+                  <div className="flex items-center gap-3 bg-secondary/60 rounded-lg px-4 py-3 text-sm">
+                    <CalendarDays className="w-4 h-4 text-gold flex-shrink-0" />
+                    <span className="text-foreground font-medium">{d}</span>
+                    <Clock className="w-4 h-4 text-gold flex-shrink-0" />
+                    <span className="text-foreground font-medium">{t}</span>
+                  </div>
+                  {stylist && (
+                    <div className="flex items-center gap-2 bg-secondary/40 rounded-lg px-4 py-2.5 text-sm">
+                      <span className="text-muted-foreground text-xs">Stylist:</span>
+                      <span className="text-foreground font-semibold">{stylist}</span>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -627,6 +637,17 @@ export default function CartSidebar({ restaurantId }: { restaurantId?: string | 
                         <p className="text-xs text-muted-foreground">{k}: <span className="text-foreground">{v}</span></p>
                       </div>
                     ))}
+                    {ci.staffName && (
+                      <div className="flex items-center gap-1.5 ml-4">
+                        <p className="text-xs text-muted-foreground">Stylist: <span className="text-foreground font-medium">{ci.staffName}</span></p>
+                      </div>
+                    )}
+                    {ci.appointmentDate && ci.appointmentTime && (
+                      <div className="flex items-center gap-1.5 ml-4">
+                        <CalendarDays className="w-3 h-3 text-gold flex-shrink-0" />
+                        <p className="text-xs text-muted-foreground">{ci.appointmentDate} at <span className="text-foreground font-medium">{ci.appointmentTime}</span></p>
+                      </div>
+                    )}
                     {ci.specialInstructions && (
                       <div className="flex items-start gap-1.5 ml-4">
                         <MessageSquare className="w-3 h-3 text-gold mt-0.5 flex-shrink-0" />

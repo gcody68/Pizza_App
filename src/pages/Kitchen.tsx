@@ -30,6 +30,8 @@ type OrderWithItems = {
   created_at: string;
   appointment_date: string | null;
   appointment_time: string | null;
+  staff_id: string | null;
+  staff_profiles: { name: string; color: string | null } | null;
   order_items: OrderItem[];
 };
 
@@ -230,7 +232,7 @@ function KitchenBoard() {
       if (!restaurantId) return [];
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items(*)")
+        .select("*, order_items(*), staff_profiles(name, color)")
         .eq("restaurant_id", restaurantId)
         .eq("status", "pending")
         .order("created_at", { ascending: true });
@@ -427,7 +429,18 @@ function KitchenBoard() {
                     <span className="font-bold text-foreground text-base tracking-wide">{order.customer_phone}</span>
                   </div>
                   {isSalon && (
-                    <div className="mt-2 text-right">
+                    <div className="mt-2 flex items-center justify-between">
+                      {order.staff_profiles ? (
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="w-4 h-4 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: order.staff_profiles.color ?? "#C9A84C" }}
+                          />
+                          <span className="text-xs font-semibold text-foreground">{order.staff_profiles.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                      )}
                       <span className="text-gold font-bold text-sm">${Number(order.total).toFixed(2)}</span>
                     </div>
                   )}

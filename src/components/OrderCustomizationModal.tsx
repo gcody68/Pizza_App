@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,17 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCart, type SelectedOptions } from "@/contexts/CartContext";
 import type { MenuItem, ItemVariant } from "@/hooks/useMenuItems";
-import { CalendarDays, Clock, Scissors, X, ChevronRight } from "lucide-react";
+import { useClockedInStaff, useAvailableSlots } from "@/hooks/useStaff";
+import { CalendarDays, Clock, Scissors, X, Loader as Loader2, User } from "lucide-react";
 import { format, addDays } from "date-fns";
-
-// Half-hourly slots 9 AM – 6 PM
-const TIME_SLOTS = [
-  "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM",
-  "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM",
-  "1:00 PM", "1:30 PM", "2:00 PM", "2:30 PM",
-  "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM",
-  "5:00 PM", "5:30 PM", "6:00 PM",
-];
 
 function formatDuration(mins: number): string {
   if (mins < 60) return `${mins} min`;
@@ -30,16 +22,26 @@ function getNextDays(count = 7) {
   return Array.from({ length: count }, (_, i) => addDays(new Date(), i));
 }
 
+const AVATAR_COLORS = [
+  "#C9A84C", "#60A5FA", "#34D399", "#F87171", "#A78BFA", "#FB923C",
+];
+
+function initials(name: string) {
+  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
 type Props = {
   item: MenuItem;
   initialVariant?: ItemVariant | null;
   onClose: () => void;
   isSalon?: boolean;
+  restaurantId?: string | null;
 };
 
 // ── Salon bottom-sheet ────────────────────────────────────────────────────────
-function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalon">) {
+function SalonBottomSheet({ item, initialVariant, onClose, restaurantId }: Omit<Props, "isSalon">) {
   const { addItem, customerInfo, setCustomerInfo } = useCart();
+  const { data: staffList = [] } = useClockedInStaff(restaurantId);
 
   const variants: ItemVariant[] = item.variants?.length ? item.variants : [];
   const optionGroups = item.options?.length ? item.options : [];
@@ -54,10 +56,25 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
     return init;
   });
 
+  // Stylist selection — null = "Anyone Available"
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+
   const days = getNextDays(7);
   const todayKey = format(new Date(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [selectedTime, setSelectedTime] = useState<string>("");
+
+  // Fetch available slots whenever date, staff, or service duration changes
+  const duration = item.duration_minutes ?? null;
+  const { data: availableSlots, isLoading: slotsLoading } = useAvailableSlots(
+    restaurantId,
+    selectedDate,
+    duration,
+    selectedStaffId,
+  );
+
+  // Reset time when date or stylist changes
+  useEffect(() => { setSelectedTime(""); }, [selectedDate, selectedStaffId]);
 
   const [localName, setLocalName] = useState(customerInfo.name);
   const [localPhone, setLocalPhone] = useState(customerInfo.phone);
@@ -67,7 +84,7 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
     options?: Record<string, string>; date?: string; time?: string;
   }>({});
 
-  // Sheet visibility animation
+  // Sheet animation
   const [visible, setVisible] = useState(false);
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
@@ -77,7 +94,6 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
   };
 
   const displayPrice = selectedVariant ? selectedVariant.price : Number(item.price);
-  const duration = item.duration_minutes ?? null;
 
   const validate = () => {
     const errs: typeof errors = {};
@@ -100,9 +116,21 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setCustomerInfo({ name: localName.trim(), phone: localPhone.trim(), email: localEmail.trim() });
     const opts = Object.keys(selectedOptions).length > 0 ? selectedOptions : undefined;
-    addItem(item, undefined, selectedVariant ?? undefined, opts, selectedDate, selectedTime);
+    const chosenStaff = staffList.find((s) => s.id === selectedStaffId) ?? null;
+    addItem(
+      item,
+      undefined,
+      selectedVariant ?? undefined,
+      opts,
+      selectedDate,
+      selectedTime,
+      selectedStaffId ?? undefined,
+      chosenStaff?.name ?? undefined,
+    );
     handleClose();
   };
+
+  const selectedStaff = staffList.find((s) => s.id === selectedStaffId) ?? null;
 
   return (
     <>
@@ -124,11 +152,7 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-1 pb-3 border-b border-border flex-shrink-0">
           {item.image_url && (
-            <img
-              src={item.image_url}
-              alt={item.name}
-              className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
-            />
+            <img src={item.image_url} alt={item.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
           )}
           <div className="flex-1 min-w-0">
             <h2 className="font-serif font-bold text-foreground text-base leading-tight truncate">{item.name}</h2>
@@ -151,6 +175,56 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-5">
+
+          {/* ── Stylist selector ── */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" /> Choose Stylist
+            </Label>
+            <div className="flex gap-2 flex-wrap">
+              {/* Anyone available chip */}
+              <button
+                onClick={() => setSelectedStaffId(null)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
+                  selectedStaffId === null
+                    ? "border-gold bg-gold/15 text-gold"
+                    : "border-border bg-secondary text-muted-foreground hover:border-gold/40 hover:text-foreground"
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                Anyone Available
+              </button>
+
+              {/* Per-stylist chips */}
+              {staffList.map((staff, i) => {
+                const color = staff.color ?? AVATAR_COLORS[i % AVATAR_COLORS.length];
+                const isSelected = selectedStaffId === staff.id;
+                return (
+                  <button
+                    key={staff.id}
+                    onClick={() => setSelectedStaffId(staff.id)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
+                      isSelected
+                        ? "border-gold bg-gold/15 text-gold"
+                        : "border-border bg-secondary text-muted-foreground hover:border-gold/40 hover:text-foreground"
+                    }`}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    >
+                      {initials(staff.name)}
+                    </span>
+                    {staff.name}
+                  </button>
+                );
+              })}
+
+              {staffList.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">No staff clocked in yet</p>
+              )}
+            </div>
+          </div>
 
           {/* Variant picker */}
           {variants.length > 0 && (
@@ -219,7 +293,7 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
                 return (
                   <button
                     key={key}
-                    onClick={() => { setSelectedDate(key); setSelectedTime(""); setErrors((p) => ({ ...p, date: undefined })); }}
+                    onClick={() => { setSelectedDate(key); setErrors((p) => ({ ...p, date: undefined })); }}
                     className={`flex-shrink-0 flex flex-col items-center gap-0.5 w-14 py-2.5 rounded-xl border transition-all duration-150 ${
                       isSelected
                         ? "border-gold bg-gold/15 text-gold"
@@ -236,34 +310,64 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
             {errors.date && <p className="text-destructive text-xs">{errors.date}</p>}
           </div>
 
-          {/* ── Time chips ── */}
+          {/* ── Time chips — dynamic from availability RPC ── */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
               Select Time <span className="text-destructive">*</span>
+              {selectedStaff && (
+                <span className="ml-auto text-[10px] font-normal text-muted-foreground normal-case tracking-normal">
+                  Showing availability for <span className="text-foreground font-medium">{selectedStaff.name}</span>
+                </span>
+              )}
             </Label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {TIME_SLOTS.map((slot) => (
-                <button
-                  key={slot}
-                  onClick={() => { setSelectedTime(slot); setErrors((p) => ({ ...p, time: undefined })); }}
-                  className={`px-1.5 py-2 rounded-lg text-[11px] font-medium border transition-all duration-150 ${
-                    selectedTime === slot
-                      ? "border-gold bg-gold/15 text-gold font-semibold"
-                      : "border-border bg-secondary text-muted-foreground hover:border-gold/40 hover:text-foreground"
-                  }`}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
+
+            {slotsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : !duration ? (
+              // No duration set — show static fallback grid
+              <p className="text-xs text-muted-foreground italic">No duration set for this service. Add one in the admin panel to enable availability checking.</p>
+            ) : (availableSlots ?? []).length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <Clock className="w-8 h-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground font-medium">No availability</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedStaff
+                    ? `${selectedStaff.name} is fully booked on this date. Try a different day or choose "Anyone Available".`
+                    : "All stylists are fully booked on this date. Please try another day."}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-1.5">
+                {(availableSlots ?? []).map((slot) => (
+                  <button
+                    key={slot}
+                    onClick={() => { setSelectedTime(slot); setErrors((p) => ({ ...p, time: undefined })); }}
+                    className={`px-1.5 py-2 rounded-lg text-[11px] font-medium border transition-all duration-150 ${
+                      selectedTime === slot
+                        ? "border-gold bg-gold/15 text-gold font-semibold"
+                        : "border-border bg-secondary text-muted-foreground hover:border-gold/40 hover:text-foreground"
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {errors.time && <p className="text-destructive text-xs">{errors.time}</p>}
             {selectedTime && duration && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5 border border-border mt-1">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5 border border-border">
                 <Clock className="w-3.5 h-3.5 text-gold flex-shrink-0" />
                 <span>
                   <span className="text-foreground font-medium">{selectedTime}</span>
-                  {" · "}Expected duration: <span className="text-foreground font-medium">{formatDuration(duration)}</span>
+                  {" · "}Expected duration:{" "}
+                  <span className="text-foreground font-medium">{formatDuration(duration)}</span>
+                  {selectedStaff && (
+                    <span className="text-muted-foreground"> · with <span className="text-foreground font-medium">{selectedStaff.name}</span></span>
+                  )}
                 </span>
               </div>
             )}
@@ -274,9 +378,7 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your Details</p>
 
             <div className="space-y-1">
-              <Label className="text-sm font-medium text-foreground">
-                Name <span className="text-destructive">*</span>
-              </Label>
+              <Label className="text-sm font-medium text-foreground">Name <span className="text-destructive">*</span></Label>
               <Input
                 value={localName}
                 onChange={(e) => { setLocalName(e.target.value); setErrors((p) => ({ ...p, name: undefined })); }}
@@ -287,9 +389,7 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
             </div>
 
             <div className="space-y-1">
-              <Label className="text-sm font-medium text-foreground">
-                Phone <span className="text-destructive">*</span>
-              </Label>
+              <Label className="text-sm font-medium text-foreground">Phone <span className="text-destructive">*</span></Label>
               <Input
                 value={localPhone}
                 onChange={(e) => { setLocalPhone(e.target.value); setErrors((p) => ({ ...p, phone: undefined })); }}
@@ -336,7 +436,7 @@ function SalonBottomSheet({ item, initialVariant, onClose }: Omit<Props, "isSalo
 }
 
 // ── Restaurant dialog (unchanged) ─────────────────────────────────────────────
-function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalon">) {
+function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalon" | "restaurantId">) {
   const { addItem, customerInfo, setCustomerInfo } = useCart();
 
   const variants: ItemVariant[] = item.variants?.length ? item.variants : [];
@@ -386,9 +486,7 @@ function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalo
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="bg-card border-border sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-serif text-gold flex items-center gap-2">
-            Add to Order
-          </DialogTitle>
+          <DialogTitle className="font-serif text-gold">Add to Order</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-1 border border-border rounded-lg p-3 bg-secondary/40">
@@ -400,10 +498,7 @@ function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalo
         {variants.length > 0 && (
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">Size <span className="text-destructive">*</span></Label>
-            <Select
-              value={selectedVariant?.label ?? ""}
-              onValueChange={(val) => { setSelectedVariant(variants.find((v) => v.label === val) ?? null); setErrors((p) => ({ ...p, variant: undefined })); }}
-            >
+            <Select value={selectedVariant?.label ?? ""} onValueChange={(val) => { setSelectedVariant(variants.find((v) => v.label === val) ?? null); setErrors((p) => ({ ...p, variant: undefined })); }}>
               <SelectTrigger className={`bg-secondary border-border ${errors.variant ? "border-destructive" : ""}`}>
                 <SelectValue placeholder="Choose a size..." />
               </SelectTrigger>
@@ -420,10 +515,7 @@ function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalo
             <Label className="text-sm font-medium text-foreground">
               {group.label}{group.required && <span className="text-destructive ml-1">*</span>}
             </Label>
-            <Select
-              value={selectedOptions[group.label] ?? ""}
-              onValueChange={(val) => { setSelectedOptions((prev) => ({ ...prev, [group.label]: val })); setErrors((p) => ({ ...p, options: { ...p.options, [group.label]: "" } })); }}
-            >
+            <Select value={selectedOptions[group.label] ?? ""} onValueChange={(val) => { setSelectedOptions((prev) => ({ ...prev, [group.label]: val })); setErrors((p) => ({ ...p, options: { ...p.options, [group.label]: "" } })); }}>
               <SelectTrigger className={`bg-secondary border-border ${errors.options?.[group.label] ? "border-destructive" : ""}`}>
                 <SelectValue placeholder={`Choose ${group.label.toLowerCase()}...`} />
               </SelectTrigger>
@@ -440,29 +532,21 @@ function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalo
             <Label className="text-sm font-medium text-foreground">
               Special Instructions <span className="text-muted-foreground font-normal text-xs">(optional)</span>
             </Label>
-            <Textarea
-              value={specialInstructions}
-              onChange={(e) => setSpecialInstructions(e.target.value)}
-              placeholder="e.g. No onions, extra sauce, allergy info..."
-              className="bg-secondary border-border resize-none h-20 text-sm"
-            />
+            <Textarea value={specialInstructions} onChange={(e) => setSpecialInstructions(e.target.value)} placeholder="e.g. No onions, extra sauce..." className="bg-secondary border-border resize-none h-20 text-sm" />
           </div>
 
           <div className="border-t border-border pt-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your Details</p>
-
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">Name <span className="text-destructive">*</span></Label>
               <Input value={localName} onChange={(e) => { setLocalName(e.target.value); setErrors((p) => ({ ...p, name: undefined })); }} placeholder="Your full name" className={`bg-secondary border-border ${errors.name ? "border-destructive" : ""}`} />
               {errors.name && <p className="text-destructive text-xs">{errors.name}</p>}
             </div>
-
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">Phone Number <span className="text-destructive">*</span></Label>
               <Input value={localPhone} onChange={(e) => { setLocalPhone(e.target.value); setErrors((p) => ({ ...p, phone: undefined })); }} placeholder="(555) 123-4567" type="tel" className={`bg-secondary border-border ${errors.phone ? "border-destructive" : ""}`} />
               {errors.phone && <p className="text-destructive text-xs">{errors.phone}</p>}
             </div>
-
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">Email <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
               <Input value={localEmail} onChange={(e) => setLocalEmail(e.target.value)} placeholder="you@example.com" type="email" className="bg-secondary border-border" />
@@ -482,9 +566,9 @@ function RestaurantDialog({ item, initialVariant, onClose }: Omit<Props, "isSalo
 }
 
 // ── Route to correct variant ──────────────────────────────────────────────────
-export default function OrderCustomizationModal({ item, initialVariant, onClose, isSalon }: Props) {
+export default function OrderCustomizationModal({ item, initialVariant, onClose, isSalon, restaurantId }: Props) {
   if (isSalon) {
-    return <SalonBottomSheet item={item} initialVariant={initialVariant} onClose={onClose} />;
+    return <SalonBottomSheet item={item} initialVariant={initialVariant} onClose={onClose} restaurantId={restaurantId} />;
   }
   return <RestaurantDialog item={item} initialVariant={initialVariant} onClose={onClose} />;
 }

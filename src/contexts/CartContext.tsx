@@ -12,6 +12,8 @@ export type CartItem = {
   selectedOptions?: SelectedOptions;
   appointmentDate?: string;
   appointmentTime?: string;
+  staffId?: string;
+  staffName?: string;
   /** Unique key per cart line — id + variant label so the same item can appear with different variants */
   lineKey: string;
 };
@@ -24,7 +26,7 @@ export type CustomerInfo = {
 
 type CartContextType = {
   items: CartItem[];
-  addItem: (item: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions, appointmentDate?: string, appointmentTime?: string) => void;
+  addItem: (item: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions, appointmentDate?: string, appointmentTime?: string, staffId?: string, staffName?: string) => void;
   removeItem: (lineKey: string) => void;
   updateQuantity: (lineKey: string, qty: number) => void;
   updateSpecialInstructions: (lineKey: string, instructions: string) => void;
@@ -61,7 +63,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setPendingVariant(item ? (variant ?? null) : null);
   }, []);
 
-  const addItem = useCallback((menuItem: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions, appointmentDate?: string, appointmentTime?: string) => {
+  const addItem = useCallback((menuItem: MenuItem, specialInstructions?: string, variant?: ItemVariant, options?: SelectedOptions, appointmentDate?: string, appointmentTime?: string, staffId?: string, staffName?: string) => {
     const lineKey = makeLineKey(menuItem.id, variant?.label);
     setItems((prev) => {
       const existing = prev.find((i) => i.lineKey === lineKey);
@@ -70,7 +72,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           i.lineKey === lineKey ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { menuItem, quantity: 1, specialInstructions, selectedVariant: variant, selectedOptions: options, appointmentDate, appointmentTime, lineKey }];
+      return [...prev, { menuItem, quantity: 1, specialInstructions, selectedVariant: variant, selectedOptions: options, appointmentDate, appointmentTime, staffId, staffName, lineKey }];
     });
   }, []);
 

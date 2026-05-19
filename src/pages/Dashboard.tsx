@@ -28,6 +28,7 @@ import {
 import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban } from "lucide-react";
 import { useMenuItems, type MenuItem } from "@/hooks/useMenuItems";
 import MenuItemModal from "@/components/MenuItemModal";
+import StaffCheckInWidget from "@/components/StaffCheckInWidget";
 import { STARTER_ITEMS } from "@/components/StarterContent";
 import { useImpersonation, ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
@@ -590,6 +591,7 @@ function DashboardContent() {
     { id: "hours", label: "Hours", icon: Clock },
     { id: "payment", label: "Payment", icon: CreditCard },
     { id: "kitchen", label: isSalon ? "Schedule" : "Kitchen", icon: isSalon ? Scissors : Monitor },
+    ...(isSalon ? [{ id: "staff", label: "Staff", icon: UserCheck }] : []),
     ...(isSuperAdmin ? [
       { id: "super_admin", label: "Super Admin", icon: Shield },
       { id: "churn_analytics", label: "Churn Analytics", icon: TrendingDown },
@@ -1227,6 +1229,25 @@ function DashboardContent() {
                   </Button>
                 </div>
               </div>
+            </>
+          )}
+
+          {activeTab === "staff" && isSalon && (
+            <>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-9 h-9 rounded-lg bg-gold/15 flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-gold" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-serif font-bold text-foreground">Staff Check-In</h1>
+                  <p className="text-xs text-muted-foreground">Manage who is on shift and available for bookings</p>
+                </div>
+              </div>
+              {menuRestaurantId ? (
+                <StaffCheckInWidget restaurantId={menuRestaurantId} />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+              )}
             </>
           )}
 

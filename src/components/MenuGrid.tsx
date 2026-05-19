@@ -439,6 +439,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
             initialVariant={pendingVariant}
             onClose={() => setPendingItem(null)}
             isSalon={true}
+            restaurantId={restaurantId}
           />
         )}
       </>
@@ -731,7 +732,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
         <MenuItemModal category={creatingCategory} onClose={() => setCreatingCategory(null)} />
       )}
       {pendingItem && (
-        <OrderCustomizationModal item={pendingItem} initialVariant={pendingVariant} onClose={() => setPendingItem(null)} isSalon={false} />
+        <OrderCustomizationModal item={pendingItem} initialVariant={pendingVariant} onClose={() => setPendingItem(null)} isSalon={false} restaurantId={restaurantId} />
       )}
       {lightboxItem && (
         <ImageLightbox
