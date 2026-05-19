@@ -131,7 +131,7 @@ function DashboardContent() {
   const { isAdmin, isSuperAdmin, authLoading, session, logout } = useAdmin();
   const { restaurantId } = useRestaurant();
   const { tier, isBoutique, isUnpaid, hasNoSubscription } = useSubscription();
-  const { data: settings } = useRestaurantSettings();
+  const { data: settings, isLoading: settingsLoading } = useRestaurantSettings();
   const update = useUpdateSettings();
   const qc = useQueryClient();
   const demo = useDemoMode();
@@ -560,10 +560,21 @@ function DashboardContent() {
     return <Navigate to="/admin" replace />;
   }
 
-  if (!settings) {
+  if (settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground">Setting up your account...</p>
+        </div>
       </div>
     );
   }

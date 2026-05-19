@@ -80,6 +80,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         .from("restaurant_settings")
         .update({ owner_id: data.session.user.id })
         .is("owner_id", null);
+      // Ensure the user has a restaurant_settings record
+      const { data: existing } = await supabase
+        .from("restaurant_settings")
+        .select("id")
+        .eq("owner_id", data.session.user.id)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from("restaurant_settings").insert({
+          business_name: data.session.user.user_metadata?.restaurant_name ?? "My Restaurant",
+          owner_id: data.session.user.id,
+        });
+      }
     }
     return { error: null };
   };
