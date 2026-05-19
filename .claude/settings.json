@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const fs=require('fs');const f='/tmp/cc-agent/66870810/project/src/components/ui/toast.tsx';try{let c=fs.readFileSync(f,'utf8');const fixed=c.replace(/\\nexport \\{ Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport \\}/g,'');if(fixed!==c){fs.writeFileSync(f,fixed);}}catch(e){}\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
