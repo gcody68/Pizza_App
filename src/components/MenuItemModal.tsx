@@ -19,14 +19,8 @@ import {
   type ItemOptionGroup,
 } from "@/hooks/useMenuItems";
 import { useRestaurantSettings, isSalonBusiness } from "@/hooks/useRestaurantSettings";
-import {
-  useStaff,
-  useStaffServiceDurations,
-  useUpsertStaffServiceDuration,
-  useDeleteStaffServiceDuration,
-} from "@/hooks/useStaff";
 import { uploadImage } from "@/hooks/useImageUpload";
-import { ImagePlus, Trash2, Loader as Loader2, Plus, X, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { ImagePlus, Trash2, Loader as Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 type Props =
@@ -165,123 +159,6 @@ function OptionGroupRow({
   );
 }
 
-// ── Per-staff duration overrides panel ───────────────────────────────────────
-function StaffDurationOverrides({
-  restaurantId,
-  menuItemId,
-  defaultDuration,
-}: {
-  restaurantId: string;
-  menuItemId: string;
-  defaultDuration: number | null;
-}) {
-  const { data: staffList = [] } = useStaff(restaurantId);
-  const { data: overrides = [] }  = useStaffServiceDurations(undefined); // fetched per-staff below
-  const upsertDuration = useUpsertStaffServiceDuration();
-  const deleteDuration = useDeleteStaffServiceDuration();
-
-  const [localVals, setLocalVals] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<string | null>(null);
-
-  // Load existing overrides for all staff in this restaurant for this item
-  const { data: itemOverrides = [] } = useStaffServiceDurations(
-    staffList.length > 0 ? staffList[0]?.id : undefined,
-  );
-
-  // Fetch overrides for ALL staff (one query per staff is too many; use a direct query)
-  const [allOverrides, setAllOverrides] = useState<Record<string, number>>({});
-  const [overridesLoaded, setOverridesLoaded] = useState(false);
-
-  // Load all overrides for this menu item across all staff
-  const loadOverrides = async () => {
-    if (staffList.length === 0) return;
-    const { supabase } = await import("@/integrations/supabase/client");
-    const { data } = await supabase
-      .from("staff_service_durations")
-      .select("staff_id, duration_minutes")
-      .eq("menu_item_id", menuItemId);
-    const map: Record<string, number> = {};
-    for (const row of data ?? []) map[row.staff_id] = row.duration_minutes;
-    setAllOverrides(map);
-    setOverridesLoaded(true);
-  };
-
-  if (!overridesLoaded && staffList.length > 0) { loadOverrides(); }
-
-  const handleSave = async (staffId: string, staffName: string) => {
-    const raw = localVals[staffId];
-    const mins = parseInt(raw, 10);
-    if (!raw || raw.trim() === "") {
-      // Delete override (revert to default)
-      setSaving(staffId);
-      try {
-        await deleteDuration.mutateAsync({ staff_id: staffId, menu_item_id: menuItemId });
-        setAllOverrides((prev) => { const n = { ...prev }; delete n[staffId]; return n; });
-        setLocalVals((prev) => { const n = { ...prev }; delete n[staffId]; return n; });
-        toast.success(`${staffName} reverted to default duration`);
-      } catch { toast.error("Failed to save"); }
-      finally { setSaving(null); }
-      return;
-    }
-    if (isNaN(mins) || mins <= 0) { toast.error("Enter a valid duration in minutes"); return; }
-    setSaving(staffId);
-    try {
-      await upsertDuration.mutateAsync({ staff_id: staffId, menu_item_id: menuItemId, duration_minutes: mins });
-      setAllOverrides((prev) => ({ ...prev, [staffId]: mins }));
-      toast.success(`${staffName}: duration set to ${mins}m`);
-    } catch { toast.error("Failed to save"); }
-    finally { setSaving(null); }
-  };
-
-  if (staffList.length === 0) {
-    return (
-      <p className="text-xs text-muted-foreground italic">No staff profiles yet. Add staff in the Staff tab.</p>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {staffList.map((staff) => {
-        const override = allOverrides[staff.id];
-        const placeholder = override ? String(override) : (defaultDuration ? String(defaultDuration) : "30");
-        const val = localVals[staff.id] ?? "";
-        return (
-          <div key={staff.id} className="flex items-center gap-2">
-            <span className="text-xs font-medium text-foreground w-20 flex-shrink-0 truncate" title={staff.name}>
-              {staff.name}
-            </span>
-            {override && localVals[staff.id] === undefined && (
-              <span className="text-xs text-gold font-semibold w-8 text-right flex-shrink-0">{override}m</span>
-            )}
-            <div className="flex-1 flex items-center gap-1.5">
-              <Input
-                type="number"
-                min="1"
-                value={val}
-                onChange={(e) => setLocalVals((prev) => ({ ...prev, [staff.id]: e.target.value }))}
-                placeholder={placeholder + "m (default)"}
-                className="bg-secondary border-border h-8 text-sm flex-1"
-                onKeyDown={(e) => { if (e.key === "Enter") handleSave(staff.id, staff.name); }}
-              />
-              <span className="text-xs text-muted-foreground flex-shrink-0">min</span>
-            </div>
-            <button
-              onClick={() => handleSave(staff.id, staff.name)}
-              disabled={saving === staff.id || !val.trim()}
-              className="text-[11px] font-semibold text-gold border border-gold/40 rounded-md px-2 h-8 hover:bg-gold/5 transition-colors disabled:opacity-40 flex-shrink-0"
-            >
-              {saving === staff.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Set"}
-            </button>
-          </div>
-        );
-      })}
-      <p className="text-[10px] text-muted-foreground">
-        Leave blank to use the service default. Clear a value and click Set to revert.
-      </p>
-    </div>
-  );
-}
-
 export default function MenuItemModal(props: Props) {
   const { onClose } = props;
   const isNew = !props.item;
@@ -302,10 +179,6 @@ export default function MenuItemModal(props: Props) {
   const [isAvailable, setIsAvailable] = useState(item?.is_available ?? true);
   const [isSpecial, setIsSpecial] = useState(item?.is_special ?? false);
   const [dailyStock, setDailyStock] = useState(item?.daily_stock != null ? String(item.daily_stock) : "");
-  const [durationMinutes, setDurationMinutes] = useState(
-    item?.duration_minutes != null ? String(item.duration_minutes) : "",
-  );
-  const [showDurationOverrides, setShowDurationOverrides] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const initialVariants: ItemVariant[] = item?.variants?.length ? item.variants : [];
@@ -400,7 +273,6 @@ export default function MenuItemModal(props: Props) {
     }
 
     const parsedStock = dailyStock.trim() !== "" ? parseInt(dailyStock, 10) : null;
-    const parsedDuration = durationMinutes.trim() !== "" ? parseInt(durationMinutes, 10) : null;
     const finalVariants = hasVariants ? variants : null;
     const finalOptions = hasOptions && optionGroups.length > 0
       ? optionGroups.filter((g) => g.label.trim())
@@ -423,8 +295,7 @@ export default function MenuItemModal(props: Props) {
           daily_stock: parsedStock,
           variants: finalVariants,
           options: finalOptions,
-          duration_minutes: parsedDuration,
-        } as Parameters<typeof create.mutateAsync>[0]);
+        });
       } else {
         await upsert.mutateAsync({
           id: item.id,
@@ -439,7 +310,6 @@ export default function MenuItemModal(props: Props) {
           daily_stock: parsedStock,
           variants: finalVariants,
           options: finalOptions,
-          duration_minutes: parsedDuration,
         });
       }
       toast.success("Menu item saved!");
@@ -641,54 +511,6 @@ export default function MenuItemModal(props: Props) {
             <Label className="text-muted-foreground text-xs">Daily Stock (leave blank for unlimited)</Label>
             <Input type="number" min="0" value={dailyStock} onChange={(e) => setDailyStock(e.target.value)} placeholder="Unlimited" className="bg-secondary border-border" />
           </div>
-
-          {/* Duration — salon only */}
-          {isSalon && (
-            <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-4 h-4 text-gold" />
-                <p className="text-sm font-semibold text-foreground">Service Duration</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground text-xs">Default Duration (minutes)</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    type="number"
-                    min="1"
-                    value={durationMinutes}
-                    onChange={(e) => setDurationMinutes(e.target.value)}
-                    placeholder="e.g. 30"
-                    className="bg-secondary border-border"
-                  />
-                  <span className="text-xs text-muted-foreground flex-shrink-0">min</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Used for booking availability calculations. Can be overridden per stylist below.
-                </p>
-              </div>
-
-              {/* Per-staff overrides — only shown when editing an existing item */}
-              {!isNew && props.restaurantId && (
-                <div className="border-t border-border pt-3 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDurationOverrides((v) => !v)}
-                    className="flex items-center gap-2 text-xs font-semibold text-gold hover:text-gold/80 transition-colors w-full text-left"
-                  >
-                    {showDurationOverrides ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    Per-Stylist Duration Overrides
-                  </button>
-                  {showDurationOverrides && (
-                    <StaffDurationOverrides
-                      restaurantId={props.restaurantId}
-                      menuItemId={item.id}
-                      defaultDuration={durationMinutes ? parseInt(durationMinutes, 10) : null}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="flex items-center justify-between rounded-lg border border-gold/30 bg-gold/5 px-4 py-3">
             <div>

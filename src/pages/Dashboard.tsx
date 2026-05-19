@@ -29,6 +29,7 @@ import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Sav
 import { useMenuItems, type MenuItem } from "@/hooks/useMenuItems";
 import MenuItemModal from "@/components/MenuItemModal";
 import StaffCheckInWidget from "@/components/StaffCheckInWidget";
+import ServiceDurationTab from "@/components/ServiceDurationTab";
 import { STARTER_ITEMS } from "@/components/StarterContent";
 import { useImpersonation, ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
@@ -588,7 +589,7 @@ function DashboardContent() {
   const NAV_TABS = [
     { id: "profile", label: "Profile", icon: User },
     { id: "branding", label: "Branding", icon: Settings },
-    { id: "hours", label: "Hours", icon: Clock },
+    { id: "hours", label: isSalon ? "Service Hours" : "Hours", icon: Clock },
     { id: "payment", label: "Payment", icon: CreditCard },
     { id: "kitchen", label: isSalon ? "Schedule" : "Kitchen", icon: isSalon ? Scissors : Monitor },
     ...(isSalon ? [{ id: "staff", label: "Staff", icon: UserCheck }] : []),
@@ -1028,20 +1029,28 @@ function DashboardContent() {
 
           {activeTab === "hours" && (
             <>
-              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">Service Hours</h1>
-              <ServiceHoursTab
-                serviceHours={serviceHours}
-                onChange={setServiceHours}
-                businessHours={businessHours}
-                onBusinessHoursChange={setBusinessHours}
-                unavailableDisplay={unavailableDisplay}
-                onDisplayChange={setUnavailableDisplay}
-              />
-              <div className="pt-4 border-t border-border mt-6">
-                <Button onClick={handleSave} disabled={update.isPending} className="w-full gradient-gold text-primary-foreground font-semibold">
-                  {update.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
-                </Button>
-              </div>
+              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">
+                {isSalon ? "Service Hours" : "Service Hours"}
+              </h1>
+              {isSalon && menuRestaurantId ? (
+                <ServiceDurationTab restaurantId={menuRestaurantId} />
+              ) : (
+                <>
+                  <ServiceHoursTab
+                    serviceHours={serviceHours}
+                    onChange={setServiceHours}
+                    businessHours={businessHours}
+                    onBusinessHoursChange={setBusinessHours}
+                    unavailableDisplay={unavailableDisplay}
+                    onDisplayChange={setUnavailableDisplay}
+                  />
+                  <div className="pt-4 border-t border-border mt-6">
+                    <Button onClick={handleSave} disabled={update.isPending} className="w-full gradient-gold text-primary-foreground font-semibold">
+                      {update.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           )}
 
