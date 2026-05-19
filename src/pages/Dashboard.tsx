@@ -1501,10 +1501,10 @@ function DashboardContent() {
       <ExcelImporter open={showImporter} onClose={() => setShowImporter(false)} />
       <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
       {editingItem && (
-        <MenuItemModal item={editingItem} onClose={() => setEditingItem(null)} />
+        <MenuItemModal item={editingItem} onClose={() => setEditingItem(null)} restaurantId={menuRestaurantId} />
       )}
       {addingItemCategory && (
-        <MenuItemModal category={addingItemCategory} onClose={() => setAddingItemCategory(null)} />
+        <MenuItemModal category={addingItemCategory} onClose={() => setAddingItemCategory(null)} restaurantId={menuRestaurantId} />
       )}
     </div>
   );

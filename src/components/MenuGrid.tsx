@@ -169,6 +169,24 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   };
 
   const grouped = useMemo(() => {
+    // Salon mode: derive categories dynamically from actual item data,
+    // preserve insertion sort order, all items are always active.
+    if (isSalon) {
+      const seen = new Set<string>();
+      const orderedCats: string[] = [];
+      for (const item of (items || [])) {
+        if (!seen.has(item.category)) { seen.add(item.category); orderedCats.push(item.category); }
+      }
+      return orderedCats.map((cat) => ({
+        category: cat,
+        items: (items || []).filter((i) => i.category === cat),
+        isAdminOnly: false,
+        isActive: true,
+        categoryPeriod: null as MealPeriod | null,
+        startsAt: "",
+      }));
+    }
+
     const groups = CATEGORIES.map((cat) => {
       const allCatItems = (items || []).filter((i) => i.category === cat);
       const catPeriod: MealPeriod | null = CATEGORY_TO_PERIOD[cat] ?? null;
@@ -220,7 +238,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
       ...upcomingService,
       ...pastService,
     ];
-  }, [items, isAdmin, unavailableDisplay, isPeriodActive, currentPeriod, getPeriodStatus]);
+  }, [items, isSalon, isAdmin, unavailableDisplay, isPeriodActive, currentPeriod, getPeriodStatus]);
 
   const specialItems = useMemo(
     () => (items || []).filter((i) => i.is_special && (i.is_available || isAdmin)),
@@ -248,7 +266,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
         <h2 className="text-3xl font-serif font-bold text-gold">
           {isSalon ? "Our Services" : "Our Menu"}
         </h2>
-        {!isAdmin && (
+        {!isAdmin && !isSalon && (
           <div className="flex flex-col items-center gap-1">
             <p className="text-sm text-muted-foreground">
               Now serving: <span className="text-gold font-medium">{currentPeriodLabel}</span>

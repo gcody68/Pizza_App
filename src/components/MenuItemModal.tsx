@@ -10,6 +10,7 @@ import {
   useUpsertMenuItem,
   useDeleteMenuItem,
   useCreateMenuItem,
+  useMenuItems,
   CATEGORIES,
   MEAL_PERIODS,
   type MenuItem,
@@ -17,13 +18,14 @@ import {
   type ItemVariant,
   type ItemOptionGroup,
 } from "@/hooks/useMenuItems";
+import { useRestaurantSettings, isSalonBusiness } from "@/hooks/useRestaurantSettings";
 import { uploadImage } from "@/hooks/useImageUpload";
 import { ImagePlus, Trash2, Loader as Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 type Props =
-  | { item: MenuItem; category?: never; onClose: () => void }
-  | { item?: never; category: string; onClose: () => void };
+  | { item: MenuItem; category?: never; onClose: () => void; restaurantId?: string | null }
+  | { item?: never; category: string; onClose: () => void; restaurantId?: string | null };
 
 function VariantRow({
   variant,
@@ -161,6 +163,12 @@ export default function MenuItemModal(props: Props) {
   const { onClose } = props;
   const isNew = !props.item;
   const item = props.item;
+  const { data: settings } = useRestaurantSettings(props.restaurantId);
+  const isSalon = isSalonBusiness(settings);
+  const { data: existingItems } = useMenuItems(props.restaurantId);
+  const salonCategories = isSalon
+    ? Array.from(new Set((existingItems || []).map((i) => i.category)))
+    : [];
 
   const [name, setName] = useState(item ? item.name : "");
   const [description, setDescription] = useState(item?.description || "");
@@ -329,7 +337,7 @@ export default function MenuItemModal(props: Props) {
       <DialogContent className="bg-card border-border max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-gold">
-            {isNew ? "Add Menu Item" : "Edit Menu Item"}
+            {isNew ? (isSalon ? "Add Service" : "Add Menu Item") : (isSalon ? "Edit Service" : "Edit Menu Item")}
           </DialogTitle>
         </DialogHeader>
 
@@ -351,31 +359,58 @@ export default function MenuItemModal(props: Props) {
           </div>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${isSalon ? "grid-cols-1" : "grid-cols-2"}`}>
             <div>
               <Label className="text-muted-foreground text-xs">Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {isSalon ? (
+                <div className="space-y-1.5">
+                  <Input
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="e.g. Cuts, Color, Treatments"
+                    className="bg-secondary border-border"
+                  />
+                  {salonCategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {salonCategories.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setCategory(c)}
+                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${category === c ? "border-gold/60 bg-gold/10 text-gold" : "border-border text-muted-foreground hover:border-gold/30"}`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-            <div>
-              <Label className="text-muted-foreground text-xs">Meal Period</Label>
-              <Select value={mealPeriod} onValueChange={(v) => setMealPeriod(v as MealPeriod)}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEAL_PERIODS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label} · {p.hours}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isSalon && (
+              <div>
+                <Label className="text-muted-foreground text-xs">Meal Period</Label>
+                <Select value={mealPeriod} onValueChange={(v) => setMealPeriod(v as MealPeriod)}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MEAL_PERIODS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>{p.label} · {p.hours}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div>
