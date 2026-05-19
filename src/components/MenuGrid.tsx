@@ -11,7 +11,7 @@ import { useMealPeriodConfig } from "@/hooks/useMealPeriodConfig";
 import { useRestaurantSettings, isSalonBusiness } from "@/hooks/useRestaurantSettings";
 import { useAdmin } from "@/contexts/AdminContext";
 import { useCart } from "@/contexts/CartContext";
-import { Plus, UtensilsCrossed, ShoppingBag, Clock, ToggleLeft, Zap, ZoomIn, Star } from "lucide-react";
+import { Plus, UtensilsCrossed, ShoppingBag, Clock, ToggleLeft, Zap, ZoomIn, Star, Scissors } from "lucide-react";
 import { useState, useMemo } from "react";
 import ImageLightbox from "./ImageLightbox";
 import { resolveImageUrl } from "@/lib/utils";
@@ -34,6 +34,13 @@ const MEAL_PERIOD_LABELS: Record<MealPeriod, string> = {
 
 function isSoldOut(item: MenuItem): boolean {
   return !item.is_available || (item.daily_stock != null && item.daily_stock <= 0);
+}
+
+function formatDuration(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 function CountdownBadge({ minutesLeft, periodLabel }: { minutesLeft: number; periodLabel: string }) {
@@ -143,6 +150,150 @@ function AddToOrderButton({
   );
 }
 
+// ── Instagram-style service tile for salon mode ──────────────────────────────
+function SalonServiceTile({
+  item,
+  onTap,
+  isAdmin,
+  onEdit,
+}: {
+  item: MenuItem;
+  onTap: () => void;
+  isAdmin: boolean;
+  onEdit: () => void;
+}) {
+  const soldOut = isSoldOut(item);
+  const price = Number(item.price);
+
+  return (
+    <div
+      className={`relative overflow-hidden cursor-pointer select-none group ${soldOut && !isAdmin ? "opacity-60" : ""}`}
+      style={{ aspectRatio: "1 / 1" }}
+      onClick={isAdmin ? onEdit : onTap}
+    >
+      {/* Background image or placeholder */}
+      {item.image_url ? (
+        <img
+          src={resolveImageUrl(item.image_url) || item.image_url}
+          alt={item.name}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+          loading="lazy"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-secondary flex items-center justify-center">
+          <Scissors className="w-10 h-10 text-muted-foreground/30" />
+        </div>
+      )}
+
+      {/* Gradient overlay — always present so text is readable */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+      {/* Sold-out ribbon */}
+      {soldOut && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="bg-black/60 text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/20 backdrop-blur-sm">
+            Unavailable
+          </span>
+        </div>
+      )}
+
+      {/* Admin badge */}
+      {isAdmin && (
+        <div className="absolute top-2 right-2 bg-gold/90 text-primary-foreground text-[10px] font-semibold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+          Edit
+        </div>
+      )}
+      {isAdmin && !item.is_available && (
+        <div className="absolute top-2 left-2 bg-destructive/90 text-destructive-foreground text-[10px] font-medium px-2 py-0.5 rounded flex items-center gap-1">
+          <ToggleLeft className="w-3 h-3" /> Off
+        </div>
+      )}
+
+      {/* Bottom info overlay */}
+      <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-6">
+        <p className="text-white font-semibold text-xs sm:text-sm leading-tight line-clamp-2 drop-shadow-sm">
+          {item.name}
+        </p>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-gold text-xs sm:text-sm font-bold drop-shadow-sm">
+            ${price.toFixed(2)}
+          </span>
+          {item.duration_minutes && (
+            <span className="flex items-center gap-0.5 text-white/70 text-[10px] sm:text-xs">
+              <Clock className="w-2.5 h-2.5" />
+              {formatDuration(item.duration_minutes)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tap-to-book ripple effect */}
+      {!isAdmin && !soldOut && (
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/30">
+            <Plus className="w-5 h-5 text-white" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Salon portfolio grid: edge-to-edge, section header, 2-col grid ───────────
+function SalonGrid({
+  grouped,
+  isAdmin,
+  onTileClick,
+  onEdit,
+  onAddInCategory,
+}: {
+  grouped: { category: string; items: MenuItem[] }[];
+  isAdmin: boolean;
+  onTileClick: (item: MenuItem) => void;
+  onEdit: (item: MenuItem) => void;
+  onAddInCategory: (cat: string) => void;
+}) {
+  return (
+    <div className="w-full">
+      {grouped.map(({ category, items: catItems }) => (
+        <div key={category} id={`category-${category}`} className="mb-1">
+          {/* Category header — flush with grid, subtle */}
+          <div className="px-4 py-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold tracking-widest uppercase text-muted-foreground/70">
+              {category}
+            </h3>
+            <span className="text-xs text-muted-foreground/50">{catItems.length} services</span>
+          </div>
+
+          {/* Edge-to-edge 2-col grid, 1px gap like Instagram */}
+          <div className="grid grid-cols-2 gap-px bg-border">
+            {catItems.map((item) => (
+              <SalonServiceTile
+                key={item.id}
+                item={item}
+                onTap={() => onTileClick(item)}
+                isAdmin={isAdmin}
+                onEdit={() => onEdit(item)}
+              />
+            ))}
+            {isAdmin && (
+              <div
+                className="cursor-pointer flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-gold hover:bg-gold/5 transition-colors bg-card"
+                style={{ aspectRatio: "1 / 1" }}
+                onClick={() => onAddInCategory(category)}
+              >
+                <Plus className="w-8 h-8" />
+                <span className="text-xs font-medium">Add Service</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 export default function MenuGrid({ restaurantId }: { restaurantId?: string | null }) {
   const { data: items, isLoading } = useMenuItems(restaurantId);
   const { data: settings } = useRestaurantSettings(restaurantId);
@@ -152,7 +303,6 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [creatingCategory, setCreatingCategory] = useState<string | null>(null);
   const [lightboxItem, setLightboxItem] = useState<{ src: string; caption: string | null } | null>(null);
-  // Track which variant is selected per card (keyed by item id)
   const [cardVariants, setCardVariants] = useState<Record<string, ItemVariant>>({});
 
   const { currentPeriod, unavailableDisplay, getPeriodStatus, isPeriodActive } = useMealPeriodConfig(restaurantId);
@@ -169,8 +319,6 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   };
 
   const grouped = useMemo(() => {
-    // Salon mode: derive categories dynamically from actual item data,
-    // preserve insertion sort order, all items are always active.
     if (isSalon) {
       const seen = new Set<string>();
       const orderedCats: string[] = [];
@@ -190,15 +338,12 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
     const groups = CATEGORIES.map((cat) => {
       const allCatItems = (items || []).filter((i) => i.category === cat);
       const catPeriod: MealPeriod | null = CATEGORY_TO_PERIOD[cat] ?? null;
-
-      const displayItems = allCatItems;
-
       const isCatActive = catPeriod ? isPeriodActive(catPeriod) : true;
       const periodStatus = catPeriod ? getPeriodStatus(catPeriod) : null;
 
       return {
         category: cat,
-        items: displayItems,
+        items: allCatItems,
         isAdminOnly: ADMIN_ONLY_CATEGORIES.includes(cat),
         isActive: isCatActive,
         categoryPeriod: catPeriod,
@@ -214,10 +359,8 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
 
     const servicePeriodOrder: MealPeriod[] = ["breakfast", "lunch", "dinner"];
     const currentIdx = servicePeriodOrder.indexOf(currentPeriod);
-
     const serviceGroups = groups.filter((g) => g.categoryPeriod !== null);
     const permanentGroups = groups.filter((g) => g.categoryPeriod === null);
-
     const activeService = serviceGroups.filter((g) => g.isActive);
     const inactiveService = serviceGroups.filter((g) => !g.isActive);
     const upcomingService = inactiveService
@@ -227,14 +370,9 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
       .filter((g) => servicePeriodOrder.indexOf(g.categoryPeriod!) < currentIdx)
       .sort((a, b) => servicePeriodOrder.indexOf(a.categoryPeriod!) - servicePeriodOrder.indexOf(b.categoryPeriod!));
 
-    const sortedPermanent = permanentGroups.map((g) => ({
-      ...g,
-      isActive: true,
-    }));
-
     return [
       ...activeService,
-      ...sortedPermanent,
+      ...permanentGroups.map((g) => ({ ...g, isActive: true })),
       ...upcomingService,
       ...pastService,
     ];
@@ -246,6 +384,17 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   );
 
   if (isLoading) {
+    if (isSalon) {
+      return (
+        <div className="w-full">
+          <div className="grid grid-cols-2 gap-px bg-border">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-secondary animate-pulse" style={{ aspectRatio: "1/1" }} />
+            ))}
+          </div>
+        </div>
+      );
+    }
     return (
       <section className="container py-12">
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
@@ -260,13 +409,48 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   const currentStatus = getPeriodStatus(currentPeriod);
   const currentPeriodLabel = MEAL_PERIOD_LABELS[currentPeriod];
 
+  // ── Salon layout: full-width portfolio grid ─────────────────────────────
+  if (isSalon) {
+    return (
+      <>
+        {/* Section heading — above the grid, with container padding */}
+        <div className="px-4 pt-10 pb-2 text-center">
+          <h2 className="text-2xl font-serif font-bold text-gold tracking-tight">Our Services</h2>
+          <p className="text-xs text-muted-foreground mt-1">Tap any service to book an appointment</p>
+        </div>
+
+        <SalonGrid
+          grouped={grouped}
+          isAdmin={isAdmin}
+          onTileClick={(item) => setPendingItem(item, getCardVariant(item) ?? undefined)}
+          onEdit={(item) => setEditingItem(item)}
+          onAddInCategory={(cat) => setCreatingCategory(cat)}
+        />
+
+        {editingItem && (
+          <MenuItemModal item={editingItem} onClose={() => setEditingItem(null)} restaurantId={restaurantId} />
+        )}
+        {creatingCategory && (
+          <MenuItemModal category={creatingCategory} onClose={() => setCreatingCategory(null)} restaurantId={restaurantId} />
+        )}
+        {pendingItem && (
+          <OrderCustomizationModal
+            item={pendingItem}
+            initialVariant={pendingVariant}
+            onClose={() => setPendingItem(null)}
+            isSalon={true}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── Restaurant layout: original card grid ────────────────────────────────
   return (
     <section className="container py-12 space-y-12">
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-serif font-bold text-gold">
-          {isSalon ? "Our Services" : "Our Menu"}
-        </h2>
-        {!isAdmin && !isSalon && (
+        <h2 className="text-3xl font-serif font-bold text-gold">Our Menu</h2>
+        {!isAdmin && (
           <div className="flex flex-col items-center gap-1">
             <p className="text-sm text-muted-foreground">
               Now serving: <span className="text-gold font-medium">{currentPeriodLabel}</span>
@@ -275,16 +459,13 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
               )}
             </p>
             {currentStatus.minutesUntilEnd != null && currentStatus.minutesUntilEnd <= 15 && (
-              <CountdownBadge
-                minutesLeft={currentStatus.minutesUntilEnd}
-                periodLabel={currentPeriodLabel}
-              />
+              <CountdownBadge minutesLeft={currentStatus.minutesUntilEnd} periodLabel={currentPeriodLabel} />
             )}
           </div>
         )}
       </div>
 
-      {/* Featured Specials — always at the top */}
+      {/* Featured Specials */}
       {specialItems.length > 0 && (
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-6 border-b border-gold/40 pb-3">
@@ -309,7 +490,6 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
                   style={{ animationDelay: `${i * 60}ms` }}
                   onClick={() => isAdmin && setEditingItem(item)}
                 >
-                  {/* Gold starburst badge */}
                   <div className="absolute top-2 right-2 z-10 pointer-events-none">
                     <div className="relative flex items-center justify-center w-14 h-14">
                       <Star className="w-14 h-14 fill-gold text-gold drop-shadow-md absolute" />
@@ -319,7 +499,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
 
                   {item.image_url ? (
                     <div
-                      className="w-full aspect-[4/3] sm:aspect-[4/3] overflow-hidden relative group/img cursor-pointer"
+                      className="w-full aspect-[4/3] overflow-hidden relative group/img cursor-pointer"
                       onClick={(e) => { e.stopPropagation(); setLightboxItem({ src: item.image_url!, caption: item.name + (item.description ? ` — ${item.description}` : "") }); }}
                     >
                       <img
@@ -376,7 +556,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
                             minutesUntilEnd={periodStatus.minutesUntilEnd}
                             selectedVariant={cardVariant}
                             onAdd={(e) => handleAddToCart(e, item)}
-                            isSalon={isSalon}
+                            isSalon={false}
                           />
                         )}
                       </div>
@@ -405,152 +585,142 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
             });
 
         return (
-        <div key={category} id={`category-${category}`}>
-          <div className="flex flex-wrap items-center gap-3 mb-6 border-b border-border pb-3">
-            <h3 className="text-2xl font-serif font-semibold text-gold/80">
-              {category}
-            </h3>
-            {!isAdmin && isActive && categoryPeriod && (
-              <span className="inline-flex items-center gap-1 bg-gold/15 text-gold border border-gold/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                <Zap className="w-3 h-3" /> Serving Now
-              </span>
-            )}
-            {!isAdmin && !isActive && categoryPeriod && startsAt && (
-              <span className="inline-flex items-center gap-1 text-muted-foreground text-xs px-2 py-0.5 rounded-full border border-border">
-                <Clock className="w-3 h-3" /> Starts at {startsAt}
-              </span>
-            )}
-            {isAdminOnly && catItems.length === 0 && (
-              <span className="text-xs font-medium bg-gold/20 text-gold border border-gold/30 px-2 py-0.5 rounded-full">
-                Admin only · not visible to customers
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-            {sortedCatItems.map((item, i) => {
-              const soldOut = isSoldOut(item);
-              const periodStatus = getPeriodStatus(item.meal_period);
-              const periodActive = isPeriodActive(item.meal_period);
-              const shouldDim = !isAdmin && soldOut;
+          <div key={category} id={`category-${category}`}>
+            <div className="flex flex-wrap items-center gap-3 mb-6 border-b border-border pb-3">
+              <h3 className="text-2xl font-serif font-semibold text-gold/80">{category}</h3>
+              {!isAdmin && isActive && categoryPeriod && (
+                <span className="inline-flex items-center gap-1 bg-gold/15 text-gold border border-gold/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                  <Zap className="w-3 h-3" /> Serving Now
+                </span>
+              )}
+              {!isAdmin && !isActive && categoryPeriod && startsAt && (
+                <span className="inline-flex items-center gap-1 text-muted-foreground text-xs px-2 py-0.5 rounded-full border border-border">
+                  <Clock className="w-3 h-3" /> Starts at {startsAt}
+                </span>
+              )}
+              {isAdminOnly && catItems.length === 0 && (
+                <span className="text-xs font-medium bg-gold/20 text-gold border border-gold/30 px-2 py-0.5 rounded-full">
+                  Admin only · not visible to customers
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+              {sortedCatItems.map((item, i) => {
+                const soldOut = isSoldOut(item);
+                const periodStatus = getPeriodStatus(item.meal_period);
+                const periodActive = isPeriodActive(item.meal_period);
+                const shouldDim = !isAdmin && soldOut;
 
-              return (
-                <div
-                  key={item.id}
-                  className={`group relative rounded-lg overflow-hidden bg-card border border-border hover:border-gold/30 transition-all duration-300 animate-fade-in cursor-default ${shouldDim ? "opacity-50" : ""}`}
-                  style={{ animationDelay: `${i * 60}ms` }}
-                  onClick={() => isAdmin && setEditingItem(item)}
-                >
-                  {item.image_url ? (
-                    <div
-                      className="w-full aspect-[4/3] sm:aspect-[4/3] overflow-hidden relative group/img cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); setLightboxItem({ src: item.image_url!, caption: item.name + (item.description ? ` — ${item.description}` : "") }); }}
-                    >
-                      <img
-                        src={resolveImageUrl(item.image_url) || item.image_url!}
-                        alt={item.name}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-[1.03]"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/25 transition-all duration-300 flex items-center justify-center">
-                        <ZoomIn className="w-7 h-7 text-white opacity-0 group-hover/img:opacity-100 transition-opacity duration-300 drop-shadow-lg" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-[4/3] bg-secondary flex items-center justify-center">
-                      <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30" />
-                    </div>
-                  )}
-
-                  {isAdmin && (
-                    <div className="absolute top-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-3rem)]">
-                      {!item.is_available && (
-                        <span className="bg-destructive/90 text-destructive-foreground text-xs px-2 py-0.5 rounded font-medium flex items-center gap-1">
-                          <ToggleLeft className="w-3 h-3" /> Off
-                        </span>
-                      )}
-                      {item.daily_stock != null && item.daily_stock <= 0 && (
-                        <span className="bg-orange-600/90 text-white text-xs px-2 py-0.5 rounded font-medium">
-                          Out of stock
-                        </span>
-                      )}
-                      {item.meal_period !== "all-day" && !SERVICE_PERIOD_CATEGORIES.includes(item.category as typeof SERVICE_PERIOD_CATEGORIES[number]) && (
-                        <span className="bg-card/90 text-muted-foreground text-xs px-2 py-0.5 rounded">
-                          {MEAL_PERIOD_LABELS[item.meal_period as MealPeriod]}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {(() => {
-                    const cardVariant = getCardVariant(item);
-                    const displayPrice = cardVariant ? cardVariant.price : Number(item.price);
-                    return (
-                      <div className="p-2 sm:p-4 space-y-1.5 sm:space-y-2">
-                        <div className="flex justify-between items-start gap-1">
-                          <h3 className="font-serif text-sm sm:text-lg font-semibold text-foreground leading-tight">
-                            {item.name}
-                          </h3>
-                          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                            <span className="text-gold font-semibold whitespace-nowrap text-sm sm:text-base">
-                              ${displayPrice.toFixed(2)}
-                            </span>
-                            {isAdmin && item.daily_stock != null && (
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {item.daily_stock} left
-                              </span>
-                            )}
-                          </div>
+                return (
+                  <div
+                    key={item.id}
+                    className={`group relative rounded-lg overflow-hidden bg-card border border-border hover:border-gold/30 transition-all duration-300 animate-fade-in cursor-default ${shouldDim ? "opacity-50" : ""}`}
+                    style={{ animationDelay: `${i * 60}ms` }}
+                    onClick={() => isAdmin && setEditingItem(item)}
+                  >
+                    {item.image_url ? (
+                      <div
+                        className="w-full aspect-[4/3] overflow-hidden relative group/img cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); setLightboxItem({ src: item.image_url!, caption: item.name + (item.description ? ` — ${item.description}` : "") }); }}
+                      >
+                        <img
+                          src={resolveImageUrl(item.image_url) || item.image_url!}
+                          alt={item.name}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-[1.03]"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/25 transition-all duration-300 flex items-center justify-center">
+                          <ZoomIn className="w-7 h-7 text-white opacity-0 group-hover/img:opacity-100 transition-opacity duration-300 drop-shadow-lg" />
                         </div>
-                        {item.description && (
-                          <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed hidden sm:block">
-                            {item.description}
-                          </p>
+                      </div>
+                    ) : (
+                      <div className="w-full aspect-[4/3] bg-secondary flex items-center justify-center">
+                        <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30" />
+                      </div>
+                    )}
+
+                    {isAdmin && (
+                      <div className="absolute top-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-3rem)]">
+                        {!item.is_available && (
+                          <span className="bg-destructive/90 text-destructive-foreground text-xs px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                            <ToggleLeft className="w-3 h-3" /> Off
+                          </span>
                         )}
-                        {!isAdmin && item.variants?.length ? (
-                          <CardVariantPills
-                            variants={item.variants}
-                            selected={cardVariant!}
-                            onSelect={(v) => setCardVariants((prev) => ({ ...prev, [item.id]: v }))}
-                          />
-                        ) : null}
-                        {!isAdmin && (
-                          <AddToOrderButton
-                            item={item}
-                            periodLabel={MEAL_PERIOD_LABELS[item.meal_period as MealPeriod]}
-                            periodActive={periodActive}
-                            periodStartLabel={periodStatus.startLabel}
-                            minutesUntilEnd={periodStatus.minutesUntilEnd}
-                            selectedVariant={cardVariant}
-                            onAdd={(e) => handleAddToCart(e, item)}
-                            isSalon={isSalon}
-                          />
+                        {item.daily_stock != null && item.daily_stock <= 0 && (
+                          <span className="bg-orange-600/90 text-white text-xs px-2 py-0.5 rounded font-medium">
+                            Out of stock
+                          </span>
+                        )}
+                        {item.meal_period !== "all-day" && !SERVICE_PERIOD_CATEGORIES.includes(item.category as typeof SERVICE_PERIOD_CATEGORIES[number]) && (
+                          <span className="bg-card/90 text-muted-foreground text-xs px-2 py-0.5 rounded">
+                            {MEAL_PERIOD_LABELS[item.meal_period as MealPeriod]}
+                          </span>
                         )}
                       </div>
-                    );
-                  })()}
+                    )}
 
-                  {isAdmin && (
-                    <div className="absolute top-2 right-2 bg-gold/90 text-primary-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      Edit
-                    </div>
-                  )}
+                    {(() => {
+                      const cardVariant = getCardVariant(item);
+                      const displayPrice = cardVariant ? cardVariant.price : Number(item.price);
+                      return (
+                        <div className="p-2 sm:p-4 space-y-1.5 sm:space-y-2">
+                          <div className="flex justify-between items-start gap-1">
+                            <h3 className="font-serif text-sm sm:text-lg font-semibold text-foreground leading-tight">{item.name}</h3>
+                            <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                              <span className="text-gold font-semibold whitespace-nowrap text-sm sm:text-base">${displayPrice.toFixed(2)}</span>
+                              {isAdmin && item.daily_stock != null && (
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">{item.daily_stock} left</span>
+                              )}
+                            </div>
+                          </div>
+                          {item.description && (
+                            <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed hidden sm:block">{item.description}</p>
+                          )}
+                          {!isAdmin && item.variants?.length ? (
+                            <CardVariantPills
+                              variants={item.variants}
+                              selected={cardVariant!}
+                              onSelect={(v) => setCardVariants((prev) => ({ ...prev, [item.id]: v }))}
+                            />
+                          ) : null}
+                          {!isAdmin && (
+                            <AddToOrderButton
+                              item={item}
+                              periodLabel={MEAL_PERIOD_LABELS[item.meal_period as MealPeriod]}
+                              periodActive={periodActive}
+                              periodStartLabel={periodStatus.startLabel}
+                              minutesUntilEnd={periodStatus.minutesUntilEnd}
+                              selectedVariant={cardVariant}
+                              onAdd={(e) => handleAddToCart(e, item)}
+                              isSalon={false}
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {isAdmin && (
+                      <div className="absolute top-2 right-2 bg-gold/90 text-primary-foreground text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                        Edit
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {isAdmin && (
+                <div className="rounded-lg overflow-hidden bg-card border border-dashed border-border hover:border-gold/30 transition-all duration-300">
+                  <button
+                    onClick={() => setCreatingCategory(category)}
+                    className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-gold transition-colors"
+                  >
+                    <Plus className="w-10 h-10" />
+                    <span className="text-sm font-medium">Add {category} Item</span>
+                  </button>
                 </div>
-              );
-            })}
-
-            {isAdmin && (
-              <div className="rounded-lg overflow-hidden bg-card border border-dashed border-border hover:border-gold/30 transition-all duration-300">
-                <button
-                  onClick={() => setCreatingCategory(category)}
-                  className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-gold transition-colors"
-                >
-                  <Plus className="w-10 h-10" />
-                  <span className="text-sm font-medium">Add {category} Item</span>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
         );
       })}
 
@@ -558,13 +728,10 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
         <MenuItemModal item={editingItem} onClose={() => setEditingItem(null)} />
       )}
       {creatingCategory && (
-        <MenuItemModal
-          category={creatingCategory}
-          onClose={() => setCreatingCategory(null)}
-        />
+        <MenuItemModal category={creatingCategory} onClose={() => setCreatingCategory(null)} />
       )}
       {pendingItem && (
-        <OrderCustomizationModal item={pendingItem} initialVariant={pendingVariant} onClose={() => setPendingItem(null)} isSalon={isSalon} />
+        <OrderCustomizationModal item={pendingItem} initialVariant={pendingVariant} onClose={() => setPendingItem(null)} isSalon={false} />
       )}
       {lightboxItem && (
         <ImageLightbox
