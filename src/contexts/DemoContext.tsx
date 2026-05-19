@@ -31,13 +31,13 @@ function getOrCreateGuestId(): string {
 const DEFAULT_DEMO_SETTINGS: RestaurantSettings = {
   id: "demo",
   owner_id: null,
-  business_name: "The Golden Fork",
-  business_address: "88 Ocean Drive, Honolulu, HI 96815",
-  business_phone: "(808) 555-0188",
-  header_image_url: null,
+  business_name: "Loomis Salon",
+  business_address: "1234 Main Street, Springfield, IL 62701",
+  business_phone: "(217) 555-0142",
+  header_image_url: "https://dgogwezhlhbcyazwpfwe.supabase.co/storage/v1/object/public/temp.images/Header_Image.png",
   logo_url: null,
-  theme: "sunwashed-citrus",
-  bg_style: "forest-dark",
+  theme: "classic-dark",
+  bg_style: "solid",
   payment_enabled: false,
   stripe_public_key: null,
   stripe_secret_key: null,
@@ -63,6 +63,7 @@ function buildDefaultMenuItems(): MenuItem[] {
     meal_period: item.meal_period,
     is_available: true,
     daily_stock: null,
+    duration_minutes: item.duration_minutes ?? null,
   }));
 }
 
