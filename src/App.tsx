@@ -49,8 +49,9 @@ function RootRoute() {
     return <Navigate to="/admin" replace />;
   }
 
-  // BETA TESTING: skip login, go straight to dashboard
-  return <Navigate to="/dashboard" replace />;
+  // No subdomain/custom-domain match and no session restaurant found.
+  // Send to login so the owner can authenticate and reach the dashboard.
+  return <Navigate to="/login" replace />;
 }
 
 const App = () => {

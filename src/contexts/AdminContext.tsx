@@ -50,14 +50,12 @@ const isTestShopMode = new URLSearchParams(window.location.search).has("test_res
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  // BETA TESTING: bypass auth — always admin, never loading
-  const [isAdmin] = useState(true);
-  const [isSuperAdmin] = useState(false);
-  const [authLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
@@ -66,6 +64,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const isAdmin = !isTestShopMode && session !== null;
+  const isSuperAdmin = isAdmin && (session?.user?.app_metadata?.super_admin === true);
 
   const login = async (email: string, password: string): Promise<{ error: string | null }> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });

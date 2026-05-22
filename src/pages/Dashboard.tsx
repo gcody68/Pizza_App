@@ -550,9 +550,7 @@ function DashboardContent() {
     window.open(url, "_blank", "noopener");
   };
 
-  // BETA TESTING: auth check bypassed
-
-  if (settingsLoading) {
+  if (authLoading || settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
@@ -561,14 +559,8 @@ function DashboardContent() {
   }
 
   if (!settings) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Setting up your account...</p>
-        </div>
-      </div>
-    );
+    // No restaurant data found — redirect to login so the owner can authenticate.
+    return <Navigate to="/login" replace />;
   }
 
   // Subscription gate disabled for preview/test builds
