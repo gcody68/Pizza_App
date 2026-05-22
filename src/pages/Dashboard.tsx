@@ -559,16 +559,9 @@ function DashboardContent() {
     );
   }
 
-  if (!settings) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Setting up your account...</p>
-        </div>
-      </div>
-    );
-  }
+  // settings is always defined (query falls back to PREVIEW_SETTINGS), so this
+  // should never trigger — guard kept purely as a TypeScript safety net.
+  if (!settings) return null;
 
   // Subscription gate disabled for preview/test builds
   // (VITE_RESTAURANT_ID is set — this is hairsalon-azure.vercel.app)

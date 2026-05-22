@@ -74,53 +74,51 @@ export function useRestaurantSettings(restaurantId?: string | null) {
   const demo = useDemoMode();
   return useQuery({
     queryKey: ["restaurant-settings", restaurantId ?? "owner"],
-    queryFn: async () => {
+    retry: false,
+    queryFn: async (): Promise<RestaurantSettings> => {
       if (demo) return demo.getSettings();
+
       // Public view: load by explicit ID resolved from subdomain/domain
       if (restaurantId) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("restaurant_settings")
           .select("*")
           .eq("id", restaurantId)
           .maybeSingle();
-        if (error) throw error;
-        return data as RestaurantSettings | null;
+        return (data as RestaurantSettings) ?? PREVIEW_SETTINGS;
       }
 
       // Admin view: load the authenticated owner's restaurant
       const { data: { session } } = await supabase.auth.getSession();
       const isSuperAdmin = session?.user?.app_metadata?.super_admin === true;
 
-      // Fall back to the env-configured restaurant ID (e.g. local dev or Vercel preview)
-      const envRestaurantId = import.meta.env.VITE_RESTAURANT_ID as string | undefined;
-      if (!session?.user?.id && envRestaurantId) {
-        const { data, error } = await supabase
+      // Env-configured restaurant ID (local dev or Vercel preview with env var set)
+      const envId = import.meta.env.VITE_RESTAURANT_ID as string | undefined;
+      const lookupId = envId || PREVIEW_RESTAURANT_ID;
+
+      if (!session?.user?.id) {
+        // No session — load by known ID so preview/staging deployments show real data
+        const { data } = await supabase
           .from("restaurant_settings")
           .select("*")
-          .eq("id", envRestaurantId)
+          .eq("id", lookupId)
           .maybeSingle();
-        if (error) throw error;
-        return data as RestaurantSettings | null;
+        return (data as RestaurantSettings) ?? PREVIEW_SETTINGS;
       }
 
-      // Fetch the owner's restaurant if logged in
-      if (session?.user?.id) {
-        let query = supabase.from("restaurant_settings").select("*");
-        if (!isSuperAdmin) query = query.eq("owner_id", session.user.id);
-        const { data, error } = await query.limit(1).maybeSingle();
-        if (error) throw error;
-        if (data) return data as RestaurantSettings;
-      }
+      // Logged-in owner
+      let query = supabase.from("restaurant_settings").select("*");
+      if (!isSuperAdmin) query = query.eq("owner_id", session.user.id);
+      const { data } = await query.limit(1).maybeSingle();
+      if (data) return data as RestaurantSettings;
 
-      // No session and no env ID — load the known preview restaurant directly
-      // so staging/Vercel deployments show real data without needing env vars.
-      const { data, error } = await supabase
+      // Owner logged in but no restaurant found yet — fall back to preview ID
+      const { data: fallback } = await supabase
         .from("restaurant_settings")
         .select("*")
-        .eq("id", PREVIEW_RESTAURANT_ID)
+        .eq("id", lookupId)
         .maybeSingle();
-      if (error) throw error;
-      return data as RestaurantSettings | null;
+      return (fallback as RestaurantSettings) ?? PREVIEW_SETTINGS;
     },
   });
 }
