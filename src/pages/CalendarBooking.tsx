@@ -1125,6 +1125,3 @@ export default function CalendarBooking() {
     </div>
   );
 }
-
-
-export default CalendarBooking
