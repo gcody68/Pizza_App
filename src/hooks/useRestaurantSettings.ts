@@ -61,33 +61,9 @@ export function isSalonBusiness(settings: RestaurantSettings | null | undefined)
   return settings?.business_type === "salon";
 }
 
-// Placeholder settings used when no session and no VITE_RESTAURANT_ID is set.
-// This allows the dashboard to render in preview/staging deployments without auth.
-const PREVIEW_SETTINGS: RestaurantSettings = {
-  id: "preview-placeholder",
-  owner_id: null,
-  business_name: "My Salon",
-  business_address: null,
-  business_phone: null,
-  header_image_url: null,
-  logo_url: null,
-  theme: "midnight-gold",
-  bg_style: "deep-charcoal",
-  payment_enabled: false,
-  stripe_public_key: null,
-  stripe_secret_key: null,
-  kitchen_view_enabled: true,
-  show_gallery: false,
-  service_hours: DEFAULT_SERVICE_HOURS,
-  business_hours: DEFAULT_BUSINESS_HOURS,
-  unavailable_display: "hide",
-  subdomain: null,
-  custom_domain: null,
-  custom_domain_verified: null,
-  sales_tax_rate: null,
-  billing_email: null,
-  business_type: "salon",
-};
+// Fallback restaurant ID used when no session and no VITE_RESTAURANT_ID env var is set.
+// This ensures preview/staging Vercel deployments load the real Loomis Salon data.
+const PREVIEW_RESTAURANT_ID = "44e1fea2-7260-43f8-9dc3-43066ad7acfc";
 
 /**
  * Load restaurant settings. Two modes:
@@ -136,8 +112,15 @@ export function useRestaurantSettings(restaurantId?: string | null) {
         if (data) return data as RestaurantSettings;
       }
 
-      // No session and no env ID — return placeholder so the dashboard renders
-      return PREVIEW_SETTINGS;
+      // No session and no env ID — load the known preview restaurant directly
+      // so staging/Vercel deployments show real data without needing env vars.
+      const { data, error } = await supabase
+        .from("restaurant_settings")
+        .select("*")
+        .eq("id", PREVIEW_RESTAURANT_ID)
+        .maybeSingle();
+      if (error) throw error;
+      return data as RestaurantSettings | null;
     },
   });
 }
