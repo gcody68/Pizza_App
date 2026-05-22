@@ -49,17 +49,8 @@ function RootRoute() {
     return <Navigate to="/admin" replace />;
   }
 
-  // Root / dev domain — need session to decide
-  if (session === undefined) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (session) return <Navigate to="/dashboard" replace />;
-  return <Navigate to="/admin" replace />;
+  // BETA TESTING: skip login, go straight to dashboard
+  return <Navigate to="/dashboard" replace />;
 }
 
 const App = () => {

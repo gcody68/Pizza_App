@@ -55,18 +55,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    // BETA TESTING: auth bypassed — skip login requirement
+    setIsAdmin(true);
+    setIsSuperAdmin(false);
+    setAuthLoading(false);
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      setIsAdmin(!isTestShopMode && !!data.session);
-      setIsSuperAdmin(!isTestShopMode && data.session?.user?.app_metadata?.super_admin === true);
-      setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      setIsAdmin(!isTestShopMode && !!s);
-      setIsSuperAdmin(!isTestShopMode && s?.user?.app_metadata?.super_admin === true);
-      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
