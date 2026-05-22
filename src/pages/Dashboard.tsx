@@ -25,7 +25,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban } from "lucide-react";
+import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban, CalendarDays } from "lucide-react";
 import { useMenuItems, type MenuItem } from "@/hooks/useMenuItems";
 import MenuItemModal from "@/components/MenuItemModal";
 import StaffCheckInWidget from "@/components/StaffCheckInWidget";
@@ -643,6 +643,15 @@ function DashboardContent() {
           <ExternalLink className="w-4 h-4 flex-shrink-0" />
           View My Public Site
         </button>
+        {isSalon && (
+          <button
+            onClick={() => navigate("/calendar")}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <CalendarDays className="w-4 h-4 flex-shrink-0" />
+            Calendar &amp; Booking
+          </button>
+        )}
         <button
           onClick={handleKitchenDisplay}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"

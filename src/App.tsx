@@ -11,6 +11,7 @@ import Index from "./pages/Index.tsx";
 import Kitchen from "./pages/Kitchen.tsx";
 import Demo from "./pages/Demo.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
+import CalendarBooking from "./pages/CalendarBooking.tsx";
 import Login from "./pages/Login.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
@@ -89,6 +90,7 @@ const App = () => {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/login" element={<Login />} />
               <Route path="/admin" element={<Login />} />
+              <Route path="/calendar" element={<CalendarBooking />} />
               <Route path="/kitchen" element={<Kitchen />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/" element={<RootRoute />} />
