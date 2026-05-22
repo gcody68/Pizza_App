@@ -127,8 +127,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       // 3. Dev/preview env var — when VITE_RESTAURANT_ID is set on a non-production
       //    host this is a preview build for a specific restaurant. Return immediately
       //    without waiting for a session so the menu loads with no flash.
-      const fallbackId = import.meta.env.VITE_RESTAURANT_ID;
-      if (fallbackId) return { status: "found", restaurantId: fallbackId };
+      // Hardcoded fallback for Vercel preview builds where .env is gitignored.
+      const fallbackId =
+        import.meta.env.VITE_RESTAURANT_ID ||
+        "44e1fea2-7260-43f8-9dc3-43066ad7acfc";
+      return { status: "found", restaurantId: fallbackId };
 
       // 4. Session-first: logged-in owner's own restaurant takes priority on
       //    production domains where no env var is set.
