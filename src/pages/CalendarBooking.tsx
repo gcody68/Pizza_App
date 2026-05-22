@@ -1,12 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ChevronLeft, ChevronRight, Plus, Clock, Search, Bell,
-  User, Scissors, Star, Package, CreditCard, X, ChevronDown,
-  Check, Smartphone, ArrowLeft, Zap, TriangleAlert as AlertTriangle,
-  CalendarDays, MoveHorizontal as MoreHorizontal, Filter, TrendingUp,
-  Pencil, FlaskConical,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Search, Bell, User, Scissors, Star, Package, CreditCard, X, ChevronDown, Check, Smartphone, ArrowLeft, Zap, TriangleAlert as AlertTriangle, CalendarDays, MoveHorizontal as MoreHorizontal, Filter, TrendingUp, Pencil, FlaskConical, Link2, DollarSign, Users, ChartBar as BarChart3 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -537,6 +531,7 @@ function AppointmentDrawer({
   onCheckout,
   onSaveNotes,
   onAddService,
+  stylists,
 }: {
   appt: Appointment;
   stylistName: string;
@@ -545,6 +540,7 @@ function AppointmentDrawer({
   onCheckout: () => void;
   onSaveNotes: (notes: string, preferences: string) => void;
   onAddService: () => void;
+  stylists: Stylist[];
 }) {
   const [notes, setNotes] = useState(appt.notes ?? "");
   const [prefs, setPrefs] = useState(appt.preferences ?? "");
@@ -552,6 +548,10 @@ function AppointmentDrawer({
   const [prefsEditing, setPrefsEditing] = useState(false);
   const [savedNotes, setSavedNotes] = useState(false);
   const [savedPrefs, setSavedPrefs] = useState(false);
+  const [gcalPopup, setGcalPopup] = useState(false);
+  const [gcalSyncing, setGcalSyncing] = useState<string | null>(null);
+  const [gcalSynced, setGcalSynced] = useState<string | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
 
   const saveNotes = useCallback(() => {
     onSaveNotes(notes, prefs);
@@ -566,6 +566,15 @@ function AppointmentDrawer({
     setSavedPrefs(true);
     setTimeout(() => setSavedPrefs(false), 2000);
   }, [notes, prefs, onSaveNotes]);
+
+  const handleGcalSync = (stylist: Stylist) => {
+    setGcalSyncing(stylist.id);
+    setTimeout(() => {
+      setGcalSyncing(null);
+      setGcalSynced(stylist.id);
+      setTimeout(() => { setGcalSynced(null); setGcalPopup(false); }, 2000);
+    }, 1400);
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
@@ -611,43 +620,111 @@ function AppointmentDrawer({
           )}
 
           {/* Formula Notes — inline editable */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
-                <FlaskConical className="w-3 h-3" /> Formula Notes
-              </p>
-              <div className="flex items-center gap-1.5">
-                {savedNotes && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold animate-in fade-in duration-200">
-                    <Check className="w-3 h-3" /> Saved
-                  </span>
-                )}
-                <button
-                  onClick={() => notesEditing ? saveNotes() : setNotesEditing(true)}
-                  className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-colors ${notesEditing ? "bg-amber-200 text-amber-800 hover:bg-amber-300" : "text-amber-600 hover:bg-amber-100"}`}
-                >
-                  {notesEditing ? <><Check className="w-3 h-3" /> Save</> : <><Pencil className="w-3 h-3" /> Edit</>}
-                </button>
+          <div className="rounded-xl overflow-visible">
+            <div
+              className={`bg-amber-50 border rounded-xl p-3 transition-all duration-200 ${notesEditing ? "border-amber-400 shadow-sm shadow-amber-100" : "border-amber-200 hover:border-amber-300 cursor-text"}`}
+              onClick={() => { if (!notesEditing) { setNotesEditing(true); setTimeout(() => notesRef.current?.focus(), 50); } }}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                  <FlaskConical className="w-3 h-3" /> Formula Notes
+                </p>
+                <div className="flex items-center gap-1.5">
+                  {savedNotes && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold animate-in fade-in duration-200">
+                      <Check className="w-3 h-3" /> Saved
+                    </span>
+                  )}
+                  {notesEditing ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); saveNotes(); }}
+                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-amber-200 text-amber-800 hover:bg-amber-300 transition-colors"
+                    >
+                      <Check className="w-3 h-3" /> Save
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-amber-500">
+                      <Pencil className="w-2.5 h-2.5" /> Click to edit
+                    </span>
+                  )}
+                </div>
               </div>
+              {notesEditing ? (
+                <textarea
+                  ref={notesRef}
+                  autoFocus
+                  value={notes}
+                  onChange={e => { setNotes(e.target.value); }}
+                  onBlur={saveNotes}
+                  rows={3}
+                  className="w-full text-xs text-amber-800 leading-relaxed bg-white/70 border border-amber-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 transition-all"
+                  placeholder="Level, developer, processing time, formula details…"
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <p className="text-xs text-amber-800 leading-relaxed min-h-[2.5rem]">
+                  {notes || <span className="text-amber-400 italic">Tap to add formula notes…</span>}
+                </p>
+              )}
             </div>
-            {notesEditing ? (
-              <textarea
-                autoFocus
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                onBlur={saveNotes}
-                rows={3}
-                className="w-full text-xs text-amber-800 leading-relaxed bg-white/70 border border-amber-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 transition-all"
-                placeholder="Enter formula notes..."
-              />
-            ) : (
-              <p
-                className="text-xs text-amber-800 leading-relaxed cursor-text min-h-[2.5rem]"
-                onClick={() => setNotesEditing(true)}
+
+            {/* Google Calendar sync button */}
+            <div className="relative mt-2">
+              <button
+                onClick={() => setGcalPopup(v => !v)}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-600 hover:bg-stone-50 hover:border-stone-300 transition-all group"
               >
-                {notes || <span className="text-amber-400 italic">Tap to add formula notes…</span>}
-              </p>
-            )}
+                <Link2 className="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-600 transition-colors" />
+                Sync to Stylist's Google Calendar
+              </button>
+
+              {gcalPopup && (
+                <div className="absolute bottom-full mb-2 left-0 right-0 z-50 animate-in slide-in-from-bottom-2 duration-200">
+                  <div className="bg-white rounded-2xl border border-stone-200 shadow-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-stone-800">Select Google Account</p>
+                        <p className="text-[10px] text-stone-400 mt-0.5">Stream this appointment to a stylist's calendar</p>
+                      </div>
+                      <button onClick={() => setGcalPopup(false)} className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 hover:bg-stone-200 transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="p-2 space-y-1">
+                      {stylists.map(st => (
+                        <button
+                          key={st.id}
+                          onClick={() => handleGcalSync(st)}
+                          disabled={!!gcalSyncing}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-stone-50 transition-all group/item disabled:opacity-60"
+                        >
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: st.avatarColor }}>
+                            {st.initials}
+                          </div>
+                          <div className="text-left flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-stone-800">{st.name}</p>
+                            <p className="text-[10px] text-stone-400">{st.name.toLowerCase().replace(" ", ".")}@gmail.com</p>
+                          </div>
+                          <div className="flex-shrink-0">
+                            {gcalSyncing === st.id && (
+                              <div className="w-4 h-4 rounded-full border-2 border-stone-300 border-t-stone-600 animate-spin" />
+                            )}
+                            {gcalSynced === st.id && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 animate-in fade-in duration-200">
+                                <Check className="w-3 h-3" /> Synced!
+                              </span>
+                            )}
+                            {gcalSyncing !== st.id && gcalSynced !== st.id && (
+                              <span className="text-[10px] text-stone-300 group-hover/item:text-stone-500 transition-colors font-medium">Add</span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Client Preferences — inline editable */}
@@ -776,6 +853,15 @@ export default function CalendarBooking() {
     ? stylists.find(s => s.id === selectedAppt.stylistId)?.appointments.find(a => a.id === selectedAppt.appt.id) ?? selectedAppt.appt
     : null;
 
+  // Computed day analytics
+  const allAppts = stylists.flatMap(s => s.appointments);
+  const totalAppts = allAppts.length;
+  const projectedRevenue = allAppts.reduce((sum, a) => sum + a.price, 0);
+  const completedCount = allAppts.filter(a => a.status === "completed").length;
+  const inChairCount = allAppts.filter(a => a.status === "in-chair" || a.status === "processing").length;
+  const arrivedCount = allAppts.filter(a => a.status === "arrived").length;
+  const activeStylists = stylists.filter(s => s.appointments.length > 0).length;
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#faf9f7", fontFamily: "'Inter', sans-serif" }}>
 
@@ -800,6 +886,28 @@ export default function CalendarBooking() {
           </button>
         </div>
       </header>
+
+      {/* ── Live Analytics Bar ── */}
+      <div className="flex-shrink-0 bg-stone-900 border-b border-stone-800 px-4 lg:px-6 py-2.5 flex items-center gap-2 overflow-x-auto">
+        <div className="flex items-center gap-1.5 mr-3 flex-shrink-0">
+          <BarChart3 className="w-3.5 h-3.5 text-stone-400" />
+          <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Today</span>
+        </div>
+        {[
+          { label: "Appointments", val: totalAppts, icon: CalendarDays, color: "text-sky-400", accent: "bg-sky-400/10" },
+          { label: "Projected", val: `$${projectedRevenue.toLocaleString()}`, icon: DollarSign, color: "text-emerald-400", accent: "bg-emerald-400/10" },
+          { label: "Completed", val: completedCount, icon: Check, color: "text-stone-300", accent: "bg-stone-600/50" },
+          { label: "In Chair", val: inChairCount, icon: Zap, color: "text-amber-400", accent: "bg-amber-400/10" },
+          { label: "Arrived", val: arrivedCount, icon: Users, color: "text-rose-400", accent: "bg-rose-400/10" },
+          { label: "Stylists On", val: activeStylists, icon: Scissors, color: "text-teal-400", accent: "bg-teal-400/10" },
+        ].map(({ label, val, icon: Icon, color, accent }) => (
+          <div key={label} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${accent} flex-shrink-0`}>
+            <Icon className={`w-3 h-3 ${color} flex-shrink-0`} />
+            <span className={`text-sm font-bold ${color}`}>{val}</span>
+            <span className="text-[10px] text-stone-500 font-medium">{label}</span>
+          </div>
+        ))}
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
 
@@ -1103,6 +1211,7 @@ export default function CalendarBooking() {
           }}
           onSaveNotes={(notes, preferences) => handleSaveNotes(selectedAppt.appt.id, notes, preferences)}
           onAddService={() => setShowAddService(true)}
+          stylists={stylists}
         />
       )}
 

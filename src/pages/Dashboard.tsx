@@ -652,13 +652,15 @@ function DashboardContent() {
             Calendar &amp; Booking
           </button>
         )}
-        <button
-          onClick={handleKitchenDisplay}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-        >
-          {isSalon ? <Scissors className="w-4 h-4 flex-shrink-0" /> : <ChefHat className="w-4 h-4 flex-shrink-0" />}
-          {isSalon ? "Stylist Dashboard" : "Kitchen Display"}
-        </button>
+        {!isSalon && (
+          <button
+            onClick={handleKitchenDisplay}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <ChefHat className="w-4 h-4 flex-shrink-0" />
+            Kitchen Display
+          </button>
+        )}
         <button
           onClick={() => setShowChangePassword(true)}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -744,13 +746,24 @@ function DashboardContent() {
             <ExternalLink className="w-4 h-4 flex-shrink-0" />
             View My Public Site
           </button>
-          <button
-            onClick={handleKitchenDisplay}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <ChefHat className="w-4 h-4 flex-shrink-0" />
-            Kitchen Display
-          </button>
+          {!isSalon && (
+            <button
+              onClick={handleKitchenDisplay}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <ChefHat className="w-4 h-4 flex-shrink-0" />
+              Kitchen Display
+            </button>
+          )}
+          {isSalon && (
+            <button
+              onClick={() => { navigate("/calendar"); setSidebarOpen(false); }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <CalendarDays className="w-4 h-4 flex-shrink-0" />
+              Calendar &amp; Booking
+            </button>
+          )}
           <button
             onClick={() => { setShowChangePassword(true); setSidebarOpen(false); }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
