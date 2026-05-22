@@ -150,7 +150,21 @@ function AddToOrderButton({
   );
 }
 
-// ── Instagram-style service tile for salon mode ──────────────────────────────
+// ── Warm taupe palette for salon customer view ────────────────────────────────
+const S = {
+  bg:        "hsl(38,25%,97%)",
+  card:      "#FFFFFF",
+  border:    "hsl(38,18%,90%)",
+  text:      "hsl(210,12%,16%)",
+  textMid:   "hsl(210,10%,40%)",
+  textLight: "hsl(210,8%,58%)",
+  taupe:     "hsl(30,40%,42%)",
+  taupeBtn:  "hsl(30,38%,40%)",
+  taupeLight:"hsl(38,40%,93%)",
+  taupeText: "hsl(30,30%,30%)",
+};
+
+// ── Mobile-first list card matching the screenshot ────────────────────────────
 function SalonServiceTile({
   item,
   onTap,
@@ -167,106 +181,137 @@ function SalonServiceTile({
 
   return (
     <div
-      className={`relative overflow-hidden cursor-pointer select-none group ${soldOut && !isAdmin ? "opacity-60" : ""}`}
-      style={{ aspectRatio: "1 / 1" }}
+      className={`group flex items-center gap-4 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 ${soldOut && !isAdmin ? "opacity-50" : ""}`}
+      style={{ background: S.card, borderBottom: `1px solid ${S.border}` }}
       onClick={isAdmin ? onEdit : onTap}
     >
-      {/* Background image or placeholder */}
-      {item.image_url ? (
-        <img
-          src={resolveImageUrl(item.image_url) || item.image_url}
-          alt={item.name}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
-          loading="lazy"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-secondary flex items-center justify-center">
-          <Scissors className="w-10 h-10 text-muted-foreground/30" />
-        </div>
-      )}
+      {/* Thumbnail */}
+      <div className="relative shrink-0 overflow-hidden rounded-xl" style={{ width: 72, height: 72 }}>
+        {item.image_url ? (
+          <img
+            src={resolveImageUrl(item.image_url) || item.image_url}
+            alt={item.name}
+            className="w-full h-full object-cover transition-transform duration-400 group-hover:scale-[1.06]"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center" style={{ background: S.taupeLight }}>
+            <Scissors className="w-6 h-6" style={{ color: S.taupe }} />
+          </div>
+        )}
+        {soldOut && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl" style={{ background: "rgba(0,0,0,0.45)" }}>
+            <span className="text-[10px] font-semibold text-white">Unavailable</span>
+          </div>
+        )}
+      </div>
 
-      {/* Gradient overlay — always present so text is readable */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-      {/* Sold-out ribbon */}
-      {soldOut && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="bg-black/60 text-white text-xs font-semibold px-3 py-1 rounded-full border border-white/20 backdrop-blur-sm">
-            Unavailable
-          </span>
-        </div>
-      )}
-
-      {/* Admin badge */}
-      {isAdmin && (
-        <div className="absolute top-2 right-2 bg-gold/90 text-primary-foreground text-[10px] font-semibold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-          Edit
-        </div>
-      )}
-      {isAdmin && !item.is_available && (
-        <div className="absolute top-2 left-2 bg-destructive/90 text-destructive-foreground text-[10px] font-medium px-2 py-0.5 rounded flex items-center gap-1">
-          <ToggleLeft className="w-3 h-3" /> Off
-        </div>
-      )}
-
-      {/* Bottom info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-6">
-        <p className="text-white font-semibold text-xs sm:text-sm leading-tight line-clamp-2 drop-shadow-sm">
+      {/* Details */}
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm leading-snug truncate" style={{ color: S.text, fontFamily: "'Inter', sans-serif" }}>
           {item.name}
         </p>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-gold text-xs sm:text-sm font-bold drop-shadow-sm">
-            ${price.toFixed(2)}
-          </span>
+        {item.description && (
+          <p className="text-xs mt-0.5 line-clamp-1" style={{ color: S.textLight }}>
+            {item.description}
+          </p>
+        )}
+        <div className="flex items-center gap-2 mt-1.5">
           {item.duration_minutes && (
-            <span className="flex items-center gap-0.5 text-white/70 text-[10px] sm:text-xs">
-              <Clock className="w-2.5 h-2.5" />
+            <span className="flex items-center gap-0.5 text-[11px]" style={{ color: S.textMid }}>
+              <Clock className="w-3 h-3 shrink-0" />
               {formatDuration(item.duration_minutes)}
             </span>
           )}
+          <span className="font-bold text-sm" style={{ color: S.taupe }}>
+            ${price.toFixed(2)}
+          </span>
         </div>
       </div>
 
-      {/* Tap-to-book ripple effect */}
-      {!isAdmin && !soldOut && (
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-          <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/30">
-            <Plus className="w-5 h-5 text-white" />
-          </div>
-        </div>
-      )}
+      {/* Action button */}
+      <div className="shrink-0">
+        {isAdmin ? (
+          <span className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors" style={{ borderColor: S.taupe, color: S.taupe }}>
+            Edit
+          </span>
+        ) : soldOut ? (
+          <span className="text-xs font-medium px-3 py-1.5 rounded-full border" style={{ borderColor: S.border, color: S.textLight }}>
+            N/A
+          </span>
+        ) : (
+          <button
+            className="text-xs font-semibold px-4 py-1.5 rounded-full border transition-all duration-150 hover:opacity-80 active:scale-95"
+            style={{ borderColor: S.taupeBtn, color: S.taupeBtn, background: "transparent" }}
+            onClick={(e) => { e.stopPropagation(); onTap(); }}
+          >
+            Select
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Salon portfolio grid: edge-to-edge, section header, 2-col grid ───────────
+// ── Salon list layout ─────────────────────────────────────────────────────────
 function SalonGrid({
   grouped,
   isAdmin,
   onTileClick,
   onEdit,
   onAddInCategory,
+  activeCategory,
+  onCategoryChange,
 }: {
   grouped: { category: string; items: MenuItem[] }[];
   isAdmin: boolean;
   onTileClick: (item: MenuItem) => void;
   onEdit: (item: MenuItem) => void;
   onAddInCategory: (cat: string) => void;
+  activeCategory: string;
+  onCategoryChange: (cat: string) => void;
 }) {
+  const allCategories = grouped.map(g => g.category);
+  const visible = activeCategory === "All"
+    ? grouped
+    : grouped.filter(g => g.category === activeCategory);
+
   return (
-    <div className="w-full">
-      {grouped.map(({ category, items: catItems }) => (
-        <div key={category} id={`category-${category}`} className="mb-1">
-          {/* Category header — flush with grid, subtle */}
-          <div className="px-4 py-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold tracking-widest uppercase text-muted-foreground/70">
+    <div className="w-full" style={{ background: S.bg }}>
+      {/* Sticky category filter pills */}
+      <div className="sticky top-16 z-30 px-4 py-3 overflow-x-auto" style={{ background: S.bg, borderBottom: `1px solid ${S.border}` }}>
+        <div className="flex gap-2 w-max">
+          {["All", ...allCategories].map(cat => {
+            const active = activeCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => onCategoryChange(cat)}
+                className="text-xs font-medium px-4 py-1.5 rounded-full border whitespace-nowrap transition-all duration-200 shrink-0"
+                style={{
+                  background: active ? S.taupeBtn : "transparent",
+                  borderColor: active ? S.taupeBtn : S.border,
+                  color: active ? "#fff" : S.textMid,
+                }}
+              >
+                {cat}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Service list by category */}
+      {visible.map(({ category, items: catItems }) => (
+        <div key={category} id={`category-${category}`}>
+          <div className="px-4 pt-5 pb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: S.textLight }}>
               {category}
-            </h3>
-            <span className="text-xs text-muted-foreground/50">{catItems.length} services</span>
+            </p>
+            <span className="text-xs" style={{ color: S.textLight }}>{catItems.length} services</span>
           </div>
 
-          {/* 2-col on mobile/tablet, 4-col on desktop */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+          <div>
             {catItems.map((item) => (
               <SalonServiceTile
                 key={item.id}
@@ -277,14 +322,14 @@ function SalonGrid({
               />
             ))}
             {isAdmin && (
-              <div
-                className="cursor-pointer flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-gold hover:bg-gold/5 transition-colors bg-card"
-                style={{ aspectRatio: "1 / 1" }}
+              <button
+                className="w-full flex items-center justify-center gap-2 py-4 text-sm transition-colors"
+                style={{ color: S.taupe, borderBottom: `1px solid ${S.border}`, background: S.card }}
                 onClick={() => onAddInCategory(category)}
               >
-                <Plus className="w-8 h-8" />
-                <span className="text-xs font-medium">Add Service</span>
-              </div>
+                <Plus className="w-4 h-4" />
+                Add Service
+              </button>
             )}
           </div>
         </div>
@@ -304,6 +349,7 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   const [creatingCategory, setCreatingCategory] = useState<string | null>(null);
   const [lightboxItem, setLightboxItem] = useState<{ src: string; caption: string | null } | null>(null);
   const [cardVariants, setCardVariants] = useState<Record<string, ItemVariant>>({});
+  const [activeCategory, setActiveCategory] = useState<string>("All");
 
   const { currentPeriod, unavailableDisplay, getPeriodStatus, isPeriodActive } = useMealPeriodConfig(restaurantId);
 
@@ -386,12 +432,22 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   if (isLoading) {
     if (isSalon) {
       return (
-        <div className="w-full">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-secondary animate-pulse" style={{ aspectRatio: "1/1" }} />
+        <div className="w-full" style={{ background: S.bg }}>
+          <div className="px-4 py-3 flex gap-2" style={{ borderBottom: `1px solid ${S.border}` }}>
+            {[80,70,90,60].map((w,i) => (
+              <div key={i} className="h-7 rounded-full animate-pulse" style={{ width: w, background: S.border }} />
             ))}
           </div>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3.5" style={{ borderBottom: `1px solid ${S.border}`, background: S.card }}>
+              <div className="w-[72px] h-[72px] rounded-xl animate-pulse shrink-0" style={{ background: S.border }} />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 rounded animate-pulse w-2/3" style={{ background: S.border }} />
+                <div className="h-3 rounded animate-pulse w-1/2" style={{ background: S.taupeLight }} />
+              </div>
+              <div className="w-16 h-7 rounded-full animate-pulse shrink-0" style={{ background: S.taupeLight }} />
+            </div>
+          ))}
         </div>
       );
     }
@@ -409,22 +465,18 @@ export default function MenuGrid({ restaurantId }: { restaurantId?: string | nul
   const currentStatus = getPeriodStatus(currentPeriod);
   const currentPeriodLabel = MEAL_PERIOD_LABELS[currentPeriod];
 
-  // ── Salon layout: full-width portfolio grid ─────────────────────────────
+  // ── Salon layout: mobile-first list view ─────────────────────────────────
   if (isSalon) {
     return (
       <>
-        {/* Section heading — above the grid, with container padding */}
-        <div className="px-4 pt-10 pb-2 text-center">
-          <h2 className="text-2xl font-serif font-bold text-gold tracking-tight">Our Services</h2>
-          <p className="text-xs text-muted-foreground mt-1">Tap any service to book an appointment</p>
-        </div>
-
         <SalonGrid
           grouped={grouped}
           isAdmin={isAdmin}
           onTileClick={(item) => setPendingItem(item, getCardVariant(item) ?? undefined)}
           onEdit={(item) => setEditingItem(item)}
           onAddInCategory={(cat) => setCreatingCategory(cat)}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
         />
 
         {editingItem && (
