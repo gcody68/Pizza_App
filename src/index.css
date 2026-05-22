@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -65,6 +65,20 @@
   }
 }
 
+/* Landing page design system — warm cream editorial palette */
+:root {
+  --cream: 38 30% 96%;
+  --cream-mid: 38 20% 90%;
+  --cream-deep: 38 15% 82%;
+  --charcoal: 210 12% 16%;
+  --charcoal-mid: 210 10% 28%;
+  --charcoal-light: 210 8% 44%;
+  --matte-black: 0 0% 8%;
+  --warm-white: 40 20% 98%;
+  --blush: 10 35% 88%;
+  --taupe: 30 15% 60%;
+}
+
 @layer utilities {
   .text-gold {
     color: hsl(var(--gold));
@@ -84,4 +98,42 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  /* Landing page utilities */
+  .font-serif { font-family: 'Playfair Display', Georgia, serif; }
+  .font-sans-light { font-family: 'Inter', sans-serif; font-weight: 300; }
+
+  .landing-cream { background-color: hsl(var(--cream)); }
+  .landing-charcoal { color: hsl(var(--charcoal)); }
+  .landing-charcoal-mid { color: hsl(var(--charcoal-mid)); }
+  .text-taupe { color: hsl(var(--taupe)); }
+
+  .highlight-pill {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .highlight-pill:hover {
+    transform: translateY(-2px);
+  }
+  .highlight-pill.active {
+    border-color: hsl(var(--charcoal));
+    background: hsl(var(--charcoal));
+    color: hsl(var(--cream));
+  }
+
+  .grid-card {
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s ease;
+  }
+  .grid-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fadeUp 0.7s ease both; }
+  .animate-fade-up-delay-1 { animation: fadeUp 0.7s 0.15s ease both; }
+  .animate-fade-up-delay-2 { animation: fadeUp 0.7s 0.3s ease both; }
+  .animate-fade-up-delay-3 { animation: fadeUp 0.7s 0.45s ease both; }
 }

@@ -36,7 +36,7 @@ function AppContent() {
       <FloatingNavSelector restaurantId={restaurantId} />
       <footer className="border-t border-border py-8 text-center">
         <p className="text-muted-foreground text-xs">
-          &copy; {new Date().getFullYear()} · Powered by love for great food
+          &copy; {new Date().getFullYear()} Loomis Salon · Powered by Loomis
         </p>
       </footer>
     </div>

@@ -14,9 +14,15 @@ import Dashboard from "./pages/Dashboard.tsx";
 import CalendarBooking from "./pages/CalendarBooking.tsx";
 import Login from "./pages/Login.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import LandingPage from "./pages/LandingPage.tsx";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 const DEMO_HOSTNAMES = ["demo.loomis-hq.com", "demo.loomishq.com"];
+
+function isVercelPreview(): boolean {
+  const h = window.location.hostname;
+  return h.endsWith(".vercel.app") || h === "vercel.app";
+}
 
 const queryClient = new QueryClient();
 
@@ -63,6 +69,29 @@ const App = () => {
           <Toaster />
           <Sonner />
           <Demo />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  // Vercel preview deployments get the marketing landing page at /
+  // (sub-routes like /demo and /dashboard still work normally)
+  if (isVercelPreview()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/demo" element={<Demo />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/kitchen" element={<Kitchen />} />
+              <Route path="*" element={<LandingPage />} />
+            </Routes>
+          </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
     );
