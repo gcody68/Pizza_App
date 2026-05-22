@@ -50,16 +50,12 @@ const isTestShopMode = new URLSearchParams(window.location.search).has("test_res
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
+  // BETA TESTING: bypass auth — always admin, never loading
+  const [isAdmin] = useState(true);
+  const [isSuperAdmin] = useState(false);
+  const [authLoading] = useState(false);
 
   useEffect(() => {
-    // BETA TESTING: auth bypassed — skip login requirement
-    setIsAdmin(true);
-    setIsSuperAdmin(false);
-    setAuthLoading(false);
-
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
     });
