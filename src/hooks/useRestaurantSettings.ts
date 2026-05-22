@@ -61,9 +61,36 @@ export function isSalonBusiness(settings: RestaurantSettings | null | undefined)
   return settings?.business_type === "salon";
 }
 
-// Fallback restaurant ID used when no session and no VITE_RESTAURANT_ID env var is set.
-// This ensures preview/staging Vercel deployments load the real Loomis Salon data.
+// Fallback restaurant ID — the real Loomis Salon record in Supabase.
+// Used when no session and no VITE_RESTAURANT_ID env var is set (Vercel preview).
 const PREVIEW_RESTAURANT_ID = "44e1fea2-7260-43f8-9dc3-43066ad7acfc";
+
+// Last-resort in-memory fallback if the DB fetch itself fails.
+const PREVIEW_SETTINGS: RestaurantSettings = {
+  id: PREVIEW_RESTAURANT_ID,
+  owner_id: null,
+  business_name: "Loomis Salon",
+  business_address: null,
+  business_phone: null,
+  header_image_url: null,
+  logo_url: null,
+  theme: "midnight-gold",
+  bg_style: "deep-charcoal",
+  payment_enabled: false,
+  stripe_public_key: null,
+  stripe_secret_key: null,
+  kitchen_view_enabled: true,
+  show_gallery: false,
+  service_hours: DEFAULT_SERVICE_HOURS,
+  business_hours: DEFAULT_BUSINESS_HOURS,
+  unavailable_display: "hide",
+  subdomain: null,
+  custom_domain: null,
+  custom_domain_verified: null,
+  sales_tax_rate: null,
+  billing_email: null,
+  business_type: "salon",
+};
 
 /**
  * Load restaurant settings. Two modes:
