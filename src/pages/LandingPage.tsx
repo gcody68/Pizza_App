@@ -219,7 +219,7 @@ export default function LandingPage() {
               </a>
             ))}
           </div>
-          <a href="/demo" className="text-sm font-medium px-5 py-2 rounded-full transition-all hover:opacity-80 active:scale-95" style={{ background: "hsl(210,12%,16%)", color: "hsl(38,30%,96%)" }}>
+          <a href="/dashboard" className="text-sm font-medium px-5 py-2 rounded-full transition-all hover:opacity-80 active:scale-95" style={{ background: "hsl(210,12%,16%)", color: "hsl(38,30%,96%)" }}>
             Try Live Demo
           </a>
         </div>
@@ -241,7 +241,7 @@ export default function LandingPage() {
             A beautifully minimal platform built for the way stylists actually work — not the way enterprise software thinks they should.
           </p>
           <div className="flex items-center gap-4 flex-wrap">
-            <a href="/demo" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm font-medium transition-all hover:opacity-90 hover:-translate-y-0.5 active:scale-95" style={{ background: "hsl(210,12%,14%)", color: "hsl(38,30%,96%)" }}>
+            <a href="/dashboard" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm font-medium transition-all hover:opacity-90 hover:-translate-y-0.5 active:scale-95" style={{ background: "hsl(210,12%,14%)", color: "hsl(38,30%,96%)" }}>
               Get Started Free
               <ArrowRight size={15} />
             </a>
@@ -456,7 +456,7 @@ export default function LandingPage() {
               ))}
             </ul>
 
-            <a href="/demo" className="block w-full py-4 rounded-full text-center text-sm font-semibold transition-all hover:opacity-90 hover:-translate-y-0.5 active:scale-98" style={{ background: "hsl(38,30%,96%)", color: "hsl(210,12%,14%)" }}>
+            <a href="/dashboard" className="block w-full py-4 rounded-full text-center text-sm font-semibold transition-all hover:opacity-90 hover:-translate-y-0.5 active:scale-98" style={{ background: "hsl(38,30%,96%)", color: "hsl(210,12%,14%)" }}>
               Start Free — No Credit Card
             </a>
           </div>
@@ -485,3 +485,6 @@ export default function LandingPage() {
     </div>
   );
 }
+
+
+export default LandingPage
