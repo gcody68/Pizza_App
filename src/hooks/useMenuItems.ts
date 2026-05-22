@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDemoMode } from "@/contexts/DemoModeContext";
+import { STARTER_ITEMS } from "@/components/StarterContent";
 
 export type MealPeriod = "breakfast" | "lunch" | "dinner" | "all-day";
 
@@ -100,7 +101,26 @@ export function useMenuItems(restaurantId?: string | null) {
         }
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error || !data || data.length === 0) {
+        return STARTER_ITEMS.map((item, i) => ({
+          id: `fallback-${i}`,
+          restaurant_id: "44e1fea2-7260-43f8-9dc3-43066ad7acfc",
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          image_url: item.image_url,
+          sort_order: item.sort_order ?? i * 10,
+          is_placeholder: false,
+          category: item.category,
+          meal_period: item.meal_period,
+          is_available: true,
+          daily_stock: null,
+          is_special: false,
+          variants: null,
+          options: null,
+          duration_minutes: item.duration_minutes ?? null,
+        })) as MenuItem[];
+      }
       return data as MenuItem[];
     },
   });

@@ -18,11 +18,6 @@ import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 const DEMO_HOSTNAMES = ["demo.loomis-hq.com", "demo.loomishq.com"];
 
-function isVercelPreview(): boolean {
-  const h = window.location.hostname;
-  return h.endsWith(".vercel.app") || h === "vercel.app";
-}
-
 const queryClient = new QueryClient();
 
 function RootRoute() {
@@ -61,7 +56,7 @@ function RootRoute() {
 const App = () => {
   // demo.loomis-hq.com bypasses RestaurantProvider entirely so it never
   // queries real restaurant data from Supabase.
-  if (DEMO_HOSTNAMES.includes(window.location.hostname) || isVercelPreview()) {
+  if (DEMO_HOSTNAMES.includes(window.location.hostname)) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
