@@ -80,7 +80,7 @@ const App = () => {
               {/* Named routes always take priority — never intercepted by restaurant resolution */}
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/admin" element={<Login />} />
+              <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
               <Route path="/calendar" element={<CalendarBooking />} />
               <Route path="/kitchen" element={<Kitchen />} />
               <Route path="/demo" element={<Demo />} />

@@ -550,17 +550,7 @@ function DashboardContent() {
     window.open(url, "_blank", "noopener");
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return <Navigate to="/admin" replace />;
-  }
+  // BETA TESTING: auth check bypassed
 
   if (settingsLoading) {
     return (
