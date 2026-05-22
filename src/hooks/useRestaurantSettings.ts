@@ -86,6 +86,19 @@ export function useRestaurantSettings(restaurantId?: string | null) {
       // Admin view: load the authenticated owner's restaurant
       const { data: { session } } = await supabase.auth.getSession();
       const isSuperAdmin = session?.user?.app_metadata?.super_admin === true;
+
+      // BETA TESTING: if no session, fall back to the env-configured restaurant ID
+      const envRestaurantId = import.meta.env.VITE_RESTAURANT_ID as string | undefined;
+      if (!session?.user?.id && envRestaurantId) {
+        const { data, error } = await supabase
+          .from("restaurant_settings")
+          .select("*")
+          .eq("id", envRestaurantId)
+          .maybeSingle();
+        if (error) throw error;
+        return data as RestaurantSettings | null;
+      }
+
       let query = supabase.from("restaurant_settings").select("*");
       if (session?.user?.id && !isSuperAdmin) {
         query = query.eq("owner_id", session.user.id);

@@ -83,6 +83,7 @@ export function useMenuItems(restaurantId?: string | null) {
         // No explicit restaurant — scope to the authenticated owner's restaurant
         const { data: { session } } = await supabase.auth.getSession();
         const isSuperAdmin = session?.user?.app_metadata?.super_admin === true;
+        const envId = import.meta.env.VITE_RESTAURANT_ID as string | undefined;
         if (session?.user?.id && !isSuperAdmin) {
           const { data: rs } = await supabase
             .from("restaurant_settings")
@@ -91,6 +92,8 @@ export function useMenuItems(restaurantId?: string | null) {
             .limit(1)
             .maybeSingle();
           if (rs?.id) query = query.eq("restaurant_id", rs.id);
+        } else if (!session?.user?.id && envId) {
+          query = query.eq("restaurant_id", envId);
         }
       }
       const { data, error } = await query;
