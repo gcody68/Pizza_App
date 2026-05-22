@@ -61,6 +61,34 @@ export function isSalonBusiness(settings: RestaurantSettings | null | undefined)
   return settings?.business_type === "salon";
 }
 
+// Placeholder settings used when no session and no VITE_RESTAURANT_ID is set.
+// This allows the dashboard to render in preview/staging deployments without auth.
+const PREVIEW_SETTINGS: RestaurantSettings = {
+  id: "preview-placeholder",
+  owner_id: null,
+  business_name: "My Salon",
+  business_address: null,
+  business_phone: null,
+  header_image_url: null,
+  logo_url: null,
+  theme: "midnight-gold",
+  bg_style: "deep-charcoal",
+  payment_enabled: false,
+  stripe_public_key: null,
+  stripe_secret_key: null,
+  kitchen_view_enabled: true,
+  show_gallery: false,
+  service_hours: DEFAULT_SERVICE_HOURS,
+  business_hours: DEFAULT_BUSINESS_HOURS,
+  unavailable_display: "hide",
+  subdomain: null,
+  custom_domain: null,
+  custom_domain_verified: null,
+  sales_tax_rate: null,
+  billing_email: null,
+  business_type: "salon",
+};
+
 /**
  * Load restaurant settings. Two modes:
  *  - Pass restaurantId to load a specific restaurant by ID (public customer view).
@@ -87,7 +115,7 @@ export function useRestaurantSettings(restaurantId?: string | null) {
       const { data: { session } } = await supabase.auth.getSession();
       const isSuperAdmin = session?.user?.app_metadata?.super_admin === true;
 
-      // BETA TESTING: if no session, fall back to the env-configured restaurant ID
+      // Fall back to the env-configured restaurant ID (e.g. local dev or Vercel preview)
       const envRestaurantId = import.meta.env.VITE_RESTAURANT_ID as string | undefined;
       if (!session?.user?.id && envRestaurantId) {
         const { data, error } = await supabase
@@ -99,13 +127,17 @@ export function useRestaurantSettings(restaurantId?: string | null) {
         return data as RestaurantSettings | null;
       }
 
-      let query = supabase.from("restaurant_settings").select("*");
-      if (session?.user?.id && !isSuperAdmin) {
-        query = query.eq("owner_id", session.user.id);
+      // Fetch the owner's restaurant if logged in
+      if (session?.user?.id) {
+        let query = supabase.from("restaurant_settings").select("*");
+        if (!isSuperAdmin) query = query.eq("owner_id", session.user.id);
+        const { data, error } = await query.limit(1).maybeSingle();
+        if (error) throw error;
+        if (data) return data as RestaurantSettings;
       }
-      const { data, error } = await query.limit(1).maybeSingle();
-      if (error) throw error;
-      return data as RestaurantSettings | null;
+
+      // No session and no env ID — return placeholder so the dashboard renders
+      return PREVIEW_SETTINGS;
     },
   });
 }
