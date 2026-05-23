@@ -24,6 +24,10 @@ function isVercelPreview(): boolean {
   return h.endsWith(".vercel.app") || h === "vercel.app";
 }
 
+function hasRestaurantParam(): boolean {
+  return new URLSearchParams(window.location.search).has("test_res_id");
+}
+
 const queryClient = new QueryClient();
 
 function RootRoute() {
@@ -75,8 +79,8 @@ const App = () => {
   }
 
   // Vercel preview deployments get the marketing landing page at /
-  // (sub-routes like /demo and /dashboard still work normally)
-  if (isVercelPreview()) {
+  // unless a test_res_id param is present, which means "View public site" was clicked
+  if (isVercelPreview() && !hasRestaurantParam()) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
