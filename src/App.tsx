@@ -78,27 +78,27 @@ const App = () => {
     );
   }
 
-  // Vercel preview deployments get the marketing landing page at /
-  // unless a test_res_id param is present, which means "View public site" was clicked
+  // Vercel preview: show landing page only at bare "/" with no restaurant param.
+  // All named app routes must still work (dashboard buttons, kitchen, calendar, etc.)
   if (isVercelPreview() && !hasRestaurantParam()) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/demo" element={<Demo />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/kitchen" element={<Kitchen />} />
-              <Route path="*" element={<LandingPage />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
+    const path = window.location.pathname;
+    const isAppRoute = ["/dashboard", "/login", "/kitchen", "/calendar", "/demo", "/admin"].some(
+      (r) => path === r || path.startsWith(r + "/")
     );
+
+    if (!isAppRoute) {
+      // Bare "/" (or unknown paths) → show landing page, no BrowserRouter needed
+      return (
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <LandingPage />
+          </TooltipProvider>
+        </QueryClientProvider>
+      );
+    }
+    // App routes fall through to the full router below
   }
 
   return (
