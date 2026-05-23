@@ -279,7 +279,7 @@ function SalonGrid({
   return (
     <div className="w-full" style={{ background: S.bg }}>
       {/* Sticky category filter pills */}
-      <div className="sticky top-16 z-30 px-4 py-3 overflow-x-auto" style={{ background: S.bg, borderBottom: `1px solid ${S.border}` }}>
+      <div className="sticky top-16 z-30 px-4 py-3 overflow-x-auto" style={{ background: S.bg, borderBottom: "1px solid hsl(38,15%,92%)" }}>
         <div className="flex gap-2 w-max">
           {["All", ...allCategories].map(cat => {
             const active = activeCategory === cat;
@@ -287,11 +287,16 @@ function SalonGrid({
               <button
                 key={cat}
                 onClick={() => onCategoryChange(cat)}
-                className="text-xs font-medium px-4 py-1.5 rounded-full border whitespace-nowrap transition-all duration-200 shrink-0"
+                className="whitespace-nowrap shrink-0 transition-all duration-200"
                 style={{
-                  background: active ? S.taupeBtn : "transparent",
-                  borderColor: active ? S.taupeBtn : S.border,
-                  color: active ? "#fff" : S.textMid,
+                  fontSize: "0.7rem",
+                  fontWeight: active ? 500 : 400,
+                  letterSpacing: "0.04em",
+                  padding: "5px 14px",
+                  borderRadius: "999px",
+                  border: `1px solid ${active ? "hsl(210,12%,22%)" : "hsl(38,15%,82%)"}`,
+                  background: active ? "hsl(210,12%,20%)" : "transparent",
+                  color: active ? "#fff" : "hsl(210,10%,48%)",
                 }}
               >
                 {cat}
