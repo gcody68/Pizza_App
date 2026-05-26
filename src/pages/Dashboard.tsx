@@ -5,6 +5,7 @@ import BookkeepingTab from "@/components/BookkeepingTab";
 import HoursServicesTab from "@/components/HoursServicesTab";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { useSiteTheme, SITE_THEMES } from "@/lib/themeContext";
+import { useServices, CATEGORY_LABELS } from "@/lib/servicesContext";
 
 type TabId = "profile" | "branding" | "hours" | "payment" | "schedule" | "staff";
 
@@ -177,7 +178,7 @@ export default function Dashboard() {
         <main className="flex-1 overflow-y-auto" style={{ background: "hsl(215,22%,13%)" }}>
           <div className="max-w-3xl mx-auto px-4 lg:px-8 py-8">
             {/* Section heading renders in slate-aware white text; card content stays on neutral surface */}
-            <TabContent tab={activeTab} restaurantId={restaurantId} smsActive={smsActive} emailActive={emailActive} />
+            <TabContent tab={activeTab} restaurantId={restaurantId} smsActive={smsActive} emailActive={emailActive} onSelectTab={selectTab} />
           </div>
         </main>
       </div>
@@ -185,15 +186,16 @@ export default function Dashboard() {
   );
 }
 
-function TabContent({ tab, restaurantId, smsActive, emailActive }: {
+function TabContent({ tab, restaurantId, smsActive, emailActive, onSelectTab }: {
   tab: TabId; restaurantId: string; smsActive: boolean; emailActive: boolean;
+  onSelectTab: (t: TabId) => void;
 }) {
   switch (tab) {
     case "schedule": return <BookkeepingTab restaurantId={restaurantId} />;
     case "hours": return <HoursServicesTab />;
     case "staff": return <StaffTab restaurantId={restaurantId} smsActive={smsActive} emailActive={emailActive} />;
     case "profile": return <ProfileTab />;
-    case "branding": return <BrandingTab />;
+    case "branding": return <BrandingTab onSelectTab={onSelectTab} />;
     case "payment": return <PaymentTab />;
     default: return <ProfileTab />;
   }
@@ -239,8 +241,9 @@ const INITIAL_GALLERY = [
   "https://images.pexels.com/photos/3993435/pexels-photo-3993435.jpeg?auto=compress&cs=tinysrgb&w=600",
 ];
 
-function BrandingTab() {
+function BrandingTab({ onSelectTab }: { onSelectTab: (t: TabId) => void }) {
   const { theme, setThemeId } = useSiteTheme();
+  const { services, updateService } = useServices();
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -375,6 +378,74 @@ function BrandingTab() {
 
         <p className="text-[11px]" style={{ color: "hsl(215,20%,40%)" }}>
           Hover a photo to reveal edit and remove controls. Changes appear on the public booking page immediately.
+        </p>
+      </div>
+
+      {/* Services quick-edit — every service editable inline, synced to public booking page */}
+      <div className="rounded-2xl border p-6 space-y-4" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "hsl(215,20%,55%)" }}>Services</p>
+          <button
+            onClick={() => onSelectTab("hours")}
+            className="text-[11px] font-semibold transition-colors"
+            style={{ color: "hsl(38,65%,60%)" }}
+          >
+            Full editor in Service Hours →
+          </button>
+        </div>
+        <div className="space-y-2">
+          {services.map(svc => {
+            const catLabel = CATEGORY_LABELS[svc.category];
+            return (
+              <div key={svc.id}
+                className="flex items-center gap-3 p-3 rounded-xl border transition-all"
+                style={{ background: "hsl(215,28%,14%)", borderColor: "hsl(215,25%,26%)" }}
+              >
+                {/* Thumbnail */}
+                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: "hsl(215,25%,22%)" }}>
+                  {svc.image ? (
+                    <img src={svc.image} alt="" className="w-full h-full object-cover"
+                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Scissors className="w-4 h-4" style={{ color: "hsl(215,20%,40%)" }} />
+                    </div>
+                  )}
+                </div>
+                {/* Name */}
+                <div className="flex-1 min-w-0">
+                  <input
+                    value={svc.name}
+                    onChange={e => updateService(svc.id, { name: e.target.value })}
+                    className="w-full text-sm font-semibold bg-transparent border-b border-transparent focus:border-[hsl(38,65%,55%)]/50 focus:outline-none transition-colors text-white py-0.5"
+                  />
+                  <p className="text-[10px] mt-0.5" style={{ color: "hsl(215,20%,45%)" }}>{catLabel}</p>
+                </div>
+                {/* Price */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="text-xs" style={{ color: "hsl(215,20%,50%)" }}>$</span>
+                  <input
+                    type="number" min={0} step={5} value={svc.price}
+                    onChange={e => updateService(svc.id, { price: Number(e.target.value) })}
+                    className="w-14 text-xs font-bold text-right bg-transparent border-b border-transparent focus:border-[hsl(38,65%,55%)]/50 focus:outline-none transition-colors text-white py-0.5"
+                  />
+                </div>
+                {/* Duration */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <input
+                    type="number" min={5} step={5} value={svc.duration}
+                    onChange={e => updateService(svc.id, { duration: Number(e.target.value) })}
+                    className="w-10 text-xs text-center bg-transparent border-b border-transparent focus:border-[hsl(38,65%,55%)]/50 focus:outline-none transition-colors py-0.5"
+                    style={{ color: "hsl(215,20%,55%)" }}
+                  />
+                  <span className="text-[10px]" style={{ color: "hsl(215,20%,40%)" }}>min</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px]" style={{ color: "hsl(215,20%,40%)" }}>
+          Edit name, price, and duration inline. To update descriptions and photos, use the full editor in Service Hours.
         </p>
       </div>
 

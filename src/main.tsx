@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import "./index.css";
 import { ThemeProvider } from "./lib/themeContext";
+import { ServicesProvider } from "./lib/servicesContext";
 import Dashboard from "./pages/Dashboard";
 import CalendarBooking from "./pages/CalendarBooking";
 import PublicBooking from "./pages/PublicBooking";
@@ -15,6 +16,7 @@ const qc = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={qc}>
+      <ServicesProvider>
       <ThemeProvider>
       <BrowserRouter>
         <Routes>
@@ -26,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
         </Routes>
       </BrowserRouter>
       </ThemeProvider>
+      </ServicesProvider>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   </StrictMode>,

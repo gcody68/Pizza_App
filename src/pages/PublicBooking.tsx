@@ -5,29 +5,11 @@ import {
   Search, Check, MessageSquare, Lock, ChevronLeft,
 } from "lucide-react";
 import { useSiteTheme } from "@/lib/themeContext";
+import { useServices, type SalonService } from "@/lib/servicesContext";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
-interface Service {
-  id: string;
-  name: string;
-  category: "cuts" | "color" | "styling" | "treatments";
-  price: number;
-  duration: number;
-  description: string;
-  image: string;
-  popular?: boolean;
-}
-
-const SERVICES: Service[] = [
-  { id: "s1", name: "Signature Cut & Style", category: "cuts",       price: 65,  duration: 60,  description: "Precision cut tailored to your face shape, finished with a professional blowout.", image: "https://images.pexels.com/photos/3992874/pexels-photo-3992874.jpeg?auto=compress&cs=tinysrgb&w=400", popular: true },
-  { id: "s2", name: "Balayage & Gloss",      category: "color",      price: 185, duration: 150, description: "Hand-painted highlights with a gloss treatment for natural, sun-kissed results.", image: "https://images.pexels.com/photos/7755250/pexels-photo-7755250.jpeg?auto=compress&cs=tinysrgb&w=400", popular: true },
-  { id: "s3", name: "Root Touch-Up",          category: "color",      price: 75,  duration: 60,  description: "Single-process color applied to new growth for seamless, full coverage.", image: "https://images.pexels.com/photos/3993435/pexels-photo-3993435.jpeg?auto=compress&cs=tinysrgb&w=400" },
-  { id: "s4", name: "Blowout",                category: "styling",    price: 55,  duration: 45,  description: "Professional shampoo, blow-dry, and style using premium thermal products.", image: "https://images.pexels.com/photos/3738340/pexels-photo-3738340.jpeg?auto=compress&cs=tinysrgb&w=400" },
-  { id: "s5", name: "Keratin Smoothing",      category: "treatments", price: 220, duration: 150, description: "Eliminates frizz and tames texture for up to 4 months of silky smooth hair.", image: "https://images.pexels.com/photos/4612274/pexels-photo-4612274.jpeg?auto=compress&cs=tinysrgb&w=400" },
-  { id: "s6", name: "Highlights",             category: "color",      price: 145, duration: 120, description: "Foil highlights placed to brighten and add dimension throughout.", image: "https://images.pexels.com/photos/3807570/pexels-photo-3807570.jpeg?auto=compress&cs=tinysrgb&w=400" },
-  { id: "s7", name: "Bang Trim",              category: "cuts",       price: 20,  duration: 15,  description: "Quick trim to maintain shape and length between full appointments.", image: "https://images.pexels.com/photos/3992876/pexels-photo-3992876.jpeg?auto=compress&cs=tinysrgb&w=400" },
-  { id: "s8", name: "Deep Conditioning",      category: "treatments", price: 45,  duration: 30,  description: "Intensive moisture treatment that restores softness and shine to dry hair.", image: "https://images.pexels.com/photos/3993318/pexels-photo-3993318.jpeg?auto=compress&cs=tinysrgb&w=400" },
-];
+// Services are sourced from ServicesContext so edits in the dashboard reflect here immediately.
+type Service = SalonService;
 
 const STYLISTS = [
   { id: "any",    name: "Any Stylist",    title: "Next Available",          rating: null,  reviews: null,  color: "#888",    initials: "?" },
@@ -378,6 +360,7 @@ const GALLERY_PHOTOS = [
 export default function PublicBooking() {
   const navigate = useNavigate();
   const { theme } = useSiteTheme();
+  const { services } = useServices();
 
   const [cat, setCat] = useState<CatId>("all");
   const [search, setSearch] = useState("");
@@ -388,7 +371,7 @@ export default function PublicBooking() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
 
-  const filtered = SERVICES.filter(s => {
+  const filtered = services.filter(s => {
     const matchCat = cat === "all" || s.category === cat;
     const matchQ = !search || s.name.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchQ;
