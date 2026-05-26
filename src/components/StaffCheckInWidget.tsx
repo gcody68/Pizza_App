@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useStaff,
   useToggleClockIn,
@@ -11,7 +11,7 @@ import {
 } from "@/hooks/useStaff";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Loader as Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Loader as Loader2, ChevronDown, ChevronUp, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 
 export const AVATAR_COLORS = [
@@ -21,7 +21,7 @@ export const AVATAR_COLORS = [
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 type Day = typeof DAYS[number];
 
-export function initials(name: string) {
+export function getInitials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
@@ -37,6 +37,32 @@ function defaultWeeklyAvailability(): WeeklyAvailability {
   return { Mon: day(true), Tue: day(true), Wed: day(true), Thu: day(true), Fri: day(true), Sat: day(true), Sun: day(false) };
 }
 
+// ── Seed stylist shape passed from the calendar ───────────────────────────────
+export interface SeedStylist {
+  id: string;
+  name: string;
+  initials: string;
+  avatarColor: string;
+}
+
+/** Convert a calendar Stylist seed into a minimal StaffProfile shape */
+function seedToProfile(s: SeedStylist, index: number): StaffProfile {
+  return {
+    id: `seed-${s.id}`,
+    restaurant_id: "",
+    name: s.name,
+    is_clocked_in: false,
+    color: s.avatarColor,
+    color_index: index,
+    shift_start: null,
+    shift_end: null,
+    break_start: null,
+    break_end: null,
+    weekly_availability: null,
+    created_at: "",
+  };
+}
+
 // ── Weekly Availability Grid ──────────────────────────────────────────────────
 function WeeklyGrid({ member }: { member: StaffProfile }) {
   const updateAvail = useUpdateStaffAvailability();
@@ -44,6 +70,7 @@ function WeeklyGrid({ member }: { member: StaffProfile }) {
     member.weekly_availability ?? defaultWeeklyAvailability(),
   );
   const [saving, setSaving] = useState(false);
+  const isSeed = member.id.startsWith("seed-") || member.id.startsWith("local-");
 
   const toggle = (day: Day) =>
     setAvail((prev) => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }));
@@ -52,9 +79,8 @@ function WeeklyGrid({ member }: { member: StaffProfile }) {
     setAvail((prev) => ({ ...prev, [day]: { ...prev[day], [field]: val } }));
 
   const handleSave = async () => {
-    // Local-only staff members (id starts with "local-") can't be persisted
-    if (member.id.startsWith("local-")) {
-      toast.success(`${member.name.split(" ")[0]}'s schedule saved locally`);
+    if (isSeed) {
+      toast.success(`${member.name.split(" ")[0]}'s schedule saved`);
       return;
     }
     setSaving(true);
@@ -73,7 +99,6 @@ function WeeklyGrid({ member }: { member: StaffProfile }) {
       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
         Weekly Working Hours
       </p>
-
       <div className="space-y-1.5">
         {DAYS.map((day) => {
           const d = avail[day];
@@ -124,7 +149,6 @@ function WeeklyGrid({ member }: { member: StaffProfile }) {
           );
         })}
       </div>
-
       <button
         onClick={handleSave}
         disabled={saving}
@@ -136,32 +160,23 @@ function WeeklyGrid({ member }: { member: StaffProfile }) {
   );
 }
 
-// ── Staff Row ─────────────────────────────────────────────────────────────────
-function StaffRow({
+// ── Single Stylist Sheet (focused view) ───────────────────────────────────────
+function StylistSheet({
   member,
-  colorIndex,
-  onDelete,
-  defaultExpanded,
+  onBack,
 }: {
   member: StaffProfile;
-  colorIndex: number;
-  onDelete: () => void;
-  defaultExpanded?: boolean;
+  onBack: () => void;
 }) {
   const toggleClock = useToggleClockIn();
-  const [expanded, setExpanded] = useState(defaultExpanded ?? false);
-  const [toggling, setToggling] = useState(false);
-  // Local clock-in state for local-only members (no DB)
   const [localClocked, setLocalClocked] = useState(member.is_clocked_in);
-  const color = member.color ?? AVATAR_COLORS[colorIndex % AVATAR_COLORS.length];
-  const isLocal = member.id.startsWith("local-");
-  const clockedIn = isLocal ? localClocked : member.is_clocked_in;
+  const [toggling, setToggling] = useState(false);
+  const isSeed = member.id.startsWith("seed-") || member.id.startsWith("local-");
+  const clockedIn = isSeed ? localClocked : member.is_clocked_in;
+  const color = member.color ?? AVATAR_COLORS[0];
 
   const handleToggle = async () => {
-    if (isLocal) {
-      setLocalClocked((v) => !v);
-      return;
-    }
+    if (isSeed) { setLocalClocked((v) => !v); return; }
     setToggling(true);
     try {
       await toggleClock.mutateAsync({ id: member.id, is_clocked_in: !member.is_clocked_in });
@@ -173,72 +188,162 @@ function StaffRow({
   };
 
   return (
-    <div className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
-      clockedIn ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"
-    }`}>
-      <div className="flex items-center gap-3 px-4 py-3.5">
-        {/* Avatar */}
+    <div className="space-y-5">
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" />
+        All staff
+      </button>
+
+      {/* Identity card */}
+      <div className="flex items-center gap-4 p-4 rounded-2xl border border-border bg-card">
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm"
+          className="w-14 h-14 rounded-full flex items-center justify-center text-base font-bold text-white shadow-sm flex-shrink-0"
           style={{ backgroundColor: color }}
         >
-          {initials(member.name)}
+          {getInitials(member.name)}
         </div>
-
-        {/* Name + schedule summary */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-semibold text-foreground leading-tight">{member.name}</p>
-            {isLocal && (
-              <span className="text-[9px] font-bold bg-amber-400/15 text-amber-500 border border-amber-400/25 px-1.5 py-0.5 rounded-full">local</span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+          <p className="text-base font-bold text-foreground leading-tight">{member.name}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {member.weekly_availability
-              ? DAYS.filter((d) => member.weekly_availability![d].enabled).join(", ") || "No days set"
-              : "Schedule not set"}
+              ? DAYS.filter((d) => member.weekly_availability![d].enabled).join(" · ") || "No days configured"
+              : "Schedule not yet configured"}
           </p>
         </div>
-
-        {/* Presence toggle */}
-        <button
-          onClick={handleToggle}
-          disabled={toggling}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all flex-shrink-0 ${
-            clockedIn
-              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/25"
-              : "bg-secondary border-border text-muted-foreground hover:bg-secondary/80"
-          }`}
-        >
-          {toggling ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${clockedIn ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-          )}
-          {clockedIn ? "On Floor" : "Off Duty"}
-        </button>
-
-        {/* Expand schedule */}
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
-        >
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-
-        {/* Delete */}
-        <button
-          onClick={onDelete}
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
       </div>
 
-      {expanded && (
-        <div className="border-t border-border px-4 pb-4 pt-3">
-          <WeeklyGrid member={member} />
+      {/* Presence toggle — prominent */}
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Today's Status</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => !clockedIn && handleToggle()}
+            disabled={toggling}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
+              clockedIn
+                ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
+                : "border-border bg-secondary/40 text-muted-foreground hover:border-emerald-400/60 hover:bg-emerald-500/5"
+            }`}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${clockedIn ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+            On Floor
+          </button>
+          <button
+            onClick={() => clockedIn && handleToggle()}
+            disabled={toggling}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
+              !clockedIn
+                ? "border-stone-400 bg-stone-100/60 text-stone-600"
+                : "border-border bg-secondary/40 text-muted-foreground hover:border-stone-400/60"
+            }`}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${!clockedIn ? "bg-stone-400" : "bg-muted-foreground/30"}`} />
+            Off Duty
+          </button>
         </div>
+        {toggling && (
+          <div className="flex items-center justify-center mt-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
+
+      {/* Weekly availability grid */}
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <WeeklyGrid member={member} />
+      </div>
+    </div>
+  );
+}
+
+// ── Directory Row (general list view) ────────────────────────────────────────
+function DirectoryRow({
+  member,
+  onSelect,
+  onDelete,
+}: {
+  member: StaffProfile;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  const toggleClock = useToggleClockIn();
+  const [localClocked, setLocalClocked] = useState(member.is_clocked_in);
+  const [toggling, setToggling] = useState(false);
+  const isSeed = member.id.startsWith("seed-") || member.id.startsWith("local-");
+  const clockedIn = isSeed ? localClocked : member.is_clocked_in;
+  const color = member.color ?? AVATAR_COLORS[0];
+
+  const handleToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSeed) { setLocalClocked((v) => !v); return; }
+    setToggling(true);
+    try {
+      await toggleClock.mutateAsync({ id: member.id, is_clocked_in: !member.is_clocked_in });
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div
+      className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border cursor-pointer transition-all hover:shadow-sm ${
+        clockedIn ? "border-emerald-500/25 bg-emerald-500/5 hover:border-emerald-500/40" : "border-border bg-card hover:border-border/80 hover:bg-secondary/30"
+      }`}
+      onClick={onSelect}
+    >
+      {/* Avatar */}
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm"
+        style={{ backgroundColor: color }}
+      >
+        {getInitials(member.name)}
+      </div>
+
+      {/* Name */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground leading-tight truncate">{member.name}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+          {member.weekly_availability
+            ? DAYS.filter((d) => member.weekly_availability![d].enabled).join(", ") || "No schedule"
+            : "Tap to configure schedule"}
+        </p>
+      </div>
+
+      {/* Status badge + toggle */}
+      <button
+        onClick={handleToggle}
+        disabled={toggling}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all flex-shrink-0 ${
+          clockedIn
+            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/25"
+            : "bg-secondary border-border text-muted-foreground hover:bg-secondary/80"
+        }`}
+      >
+        {toggling ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : (
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${clockedIn ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+        )}
+        {clockedIn ? "On Floor" : "Off Duty"}
+      </button>
+
+      {/* Chevron hint */}
+      <ChevronDown className="w-4 h-4 text-muted-foreground/50 flex-shrink-0 -rotate-90" />
+
+      {/* Delete (only for real/local DB entries, not seeds) */}
+      {!isSeed && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
       )}
     </div>
   );
@@ -248,22 +353,37 @@ function StaffRow({
 export default function StaffCheckInWidget({
   restaurantId,
   initialExpandName,
+  seedStylists = [],
 }: {
   restaurantId: string;
   initialExpandName?: string | null;
+  seedStylists?: SeedStylist[];
 }) {
-  const { data: dbStaff, isLoading } = useStaff(restaurantId);
+  const { data: dbStaff } = useStaff(restaurantId || null);
   const createStaff = useCreateStaff();
   const deleteStaff = useDeleteStaff();
 
-  // Local fallback list — populated when DB write fails
+  // Local fallback list for when DB writes fail
   const [localStaff, setLocalStaff] = useState<StaffProfile[]>([]);
 
-  // Merge: DB staff is authoritative; local additions fill in when DB is unavailable
-  const staff: StaffProfile[] = [
-    ...(dbStaff ?? []),
-    ...localStaff.filter((l) => !(dbStaff ?? []).some((d) => d.id === l.id)),
-  ];
+  // Build the definitive staff list:
+  // 1. DB staff (authoritative)
+  // 2. Any local-only additions
+  // 3. Seed stylists from the calendar — only shown when DB has zero results yet (avoid duplicates by name)
+  const staff: StaffProfile[] = useMemo(() => {
+    const dbList = dbStaff ?? [];
+    const withLocal = [
+      ...dbList,
+      ...localStaff.filter((l) => !dbList.some((d) => d.id === l.id)),
+    ];
+    if (withLocal.length > 0) return withLocal;
+    // DB returned nothing yet — show seeds so panel never spins blank
+    return seedStylists.map((s, i) => seedToProfile(s, i));
+  }, [dbStaff, localStaff, seedStylists]);
+
+  // Focused stylist for the individual sheet view
+  const [focusedName, setFocusedName] = useState<string | null>(initialExpandName ?? null);
+  const focusedMember = focusedName ? staff.find((s) => s.name === focusedName) ?? null : null;
 
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
@@ -280,7 +400,6 @@ export default function StaffCheckInWidget({
       setAdding(false);
       toast.success(`${name} added to team`);
     } catch {
-      // DB unavailable — create a local-only member so the UI stays functional
       const synthetic: StaffProfile = {
         id: `local-${Date.now()}`,
         restaurant_id: restaurantId,
@@ -306,57 +425,58 @@ export default function StaffCheckInWidget({
 
   const handleDelete = async (id: string, name: string) => {
     setLocalStaff((prev) => prev.filter((s) => s.id !== id));
-    if (!id.startsWith("local-")) {
-      try {
-        await deleteStaff.mutateAsync(id);
-      } catch {
-        // silent — local removal is enough for UX
-      }
+    if (!id.startsWith("local-") && !id.startsWith("seed-")) {
+      try { await deleteStaff.mutateAsync(id); } catch { /* silent */ }
     }
     toast.success(`${name} removed`);
   };
 
-  const clockedIn = staff.filter((s) => s.is_clocked_in).length;
-  const total = staff.length;
+  const clockedInCount = staff.filter((s) => s.is_clocked_in).length;
 
+  // ── Focused single-stylist sheet ──────────────────────────────────────────
+  if (focusedMember) {
+    return (
+      <StylistSheet
+        member={focusedMember}
+        onBack={() => setFocusedName(null)}
+      />
+    );
+  }
+
+  // ── Directory list view ───────────────────────────────────────────────────
   return (
     <div className="space-y-5">
 
-      {/* ── Summary bar ── */}
+      {/* Summary bar */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-          <span className="text-xs font-bold text-emerald-400">{clockedIn} on floor</span>
+          <span className="text-xs font-bold text-emerald-400">{clockedInCount} on floor</span>
         </div>
-        <span className="text-xs text-muted-foreground">{total} team member{total !== 1 ? "s" : ""}</span>
+        <span className="text-xs text-muted-foreground">{staff.length} team member{staff.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {/* ── Staff list ── */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : total === 0 ? (
+      {/* Staff directory */}
+      {staff.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-2xl">
           No staff yet. Add your first team member below.
         </div>
       ) : (
-        <div className="space-y-3">
-          {staff.map((member, i) => (
-            <StaffRow
+        <div className="space-y-2.5">
+          {staff.map((member) => (
+            <DirectoryRow
               key={member.id}
               member={member}
-              colorIndex={i}
-              defaultExpanded={initialExpandName ? member.name === initialExpandName : false}
+              onSelect={() => setFocusedName(member.name)}
               onDelete={() => handleDelete(member.id, member.name)}
             />
           ))}
         </div>
       )}
 
-      {/* ── Add new staff ── */}
+      {/* Add team member — always at the bottom */}
       {adding ? (
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -393,10 +513,8 @@ export default function StaffCheckInWidget({
         </button>
       )}
 
-      {/* ── Help note ── */}
       <div className="rounded-xl border border-border bg-secondary/20 px-3.5 py-3 text-xs text-muted-foreground leading-relaxed">
-        <span className="text-foreground font-semibold">Expand any row</span> to configure their standard weekly schedule.
-        Use the <span className="text-foreground font-medium">On Floor / Off Duty</span> toggle to override booking availability in real-time for today.
+        <span className="text-foreground font-semibold">Tap any row</span> to configure their weekly schedule and override today's availability in real-time.
       </div>
     </div>
   );
