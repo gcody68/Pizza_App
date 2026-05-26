@@ -18,6 +18,7 @@ createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route path="/" element={<PublicBooking />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/:tab" element={<Dashboard />} />
           <Route path="/calendar" element={<CalendarBooking />} />
           <Route path="/notifications" element={<NotificationsSettings />} />
         </Routes>
