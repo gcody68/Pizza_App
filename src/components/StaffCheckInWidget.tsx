@@ -4,62 +4,63 @@ import {
   useToggleClockIn,
   useCreateStaff,
   useDeleteStaff,
-  useUpdateStaffSchedule,
+  useUpdateStaffAvailability,
   type StaffProfile,
+  type WeeklyAvailability,
+  type DayAvailability,
 } from "@/hooks/useStaff";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { UserCheck, Plus, Trash2, Loader as Loader2, ChevronDown, ChevronUp, Clock, Coffee } from "lucide-react";
+import { Plus, Trash2, Loader as Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 const AVATAR_COLORS = [
-  "#C9A84C", "#60A5FA", "#34D399", "#F87171", "#A78BFA", "#FB923C", "#38BDF8",
+  "#C9A84C", "#7EB8B0", "#E07B7B", "#A07BD4", "#60A5FA", "#34D399", "#FB923C",
 ];
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+type Day = typeof DAYS[number];
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
-/** Format a 24h "HH:MM" time string into a display string like "9:00 AM" */
-function fmt24(t: string | null): string {
-  if (!t) return "—";
+function fmt24(t: string): string {
   const [hh, mm] = t.split(":").map(Number);
   const period = hh < 12 ? "AM" : "PM";
   const h = hh % 12 || 12;
   return `${h}:${String(mm).padStart(2, "0")} ${period}`;
 }
 
-// ── Shift Settings Panel ──────────────────────────────────────────────────────
-function ShiftSettingsPanel({ member }: { member: StaffProfile }) {
-  const updateSchedule = useUpdateStaffSchedule();
+function defaultWeeklyAvailability(): WeeklyAvailability {
+  const day = (enabled: boolean): DayAvailability => ({ enabled, start: "09:00", end: "17:00" });
+  return { Mon: day(true), Tue: day(true), Wed: day(true), Thu: day(true), Fri: day(true), Sat: day(true), Sun: day(false) };
+}
 
-  const [shiftEnabled, setShiftEnabled] = useState(
-    !!(member.shift_start || member.shift_end),
+// ── Weekly Availability Grid ──────────────────────────────────────────────────
+function WeeklyGrid({ member }: { member: StaffProfile }) {
+  const updateAvail = useUpdateStaffAvailability();
+  const [avail, setAvail] = useState<WeeklyAvailability>(
+    member.weekly_availability ?? defaultWeeklyAvailability(),
   );
-  const [breakEnabled, setBreakEnabled] = useState(
-    !!(member.break_start || member.break_end),
-  );
-
-  const [shiftStart, setShiftStart] = useState(member.shift_start ?? "09:00");
-  const [shiftEnd,   setShiftEnd]   = useState(member.shift_end   ?? "18:00");
-  const [breakStart, setBreakStart] = useState(member.break_start ?? "12:00");
-  const [breakEnd,   setBreakEnd]   = useState(member.break_end   ?? "13:00");
-
   const [saving, setSaving] = useState(false);
+
+  const toggle = (day: Day) => {
+    setAvail((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], enabled: !prev[day].enabled },
+    }));
+  };
+
+  const setTime = (day: Day, field: "start" | "end", val: string) => {
+    setAvail((prev) => ({ ...prev, [day]: { ...prev[day], [field]: val } }));
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateSchedule.mutateAsync({
-        id: member.id,
-        shift_start: shiftEnabled ? shiftStart : null,
-        shift_end:   shiftEnabled ? shiftEnd   : null,
-        break_start: breakEnabled ? breakStart : null,
-        break_end:   breakEnabled ? breakEnd   : null,
-      });
-      toast.success(`${member.name}'s schedule saved`);
+      await updateAvail.mutateAsync({ id: member.id, weekly_availability: avail });
+      toast.success(`${member.name.split(" ")[0]}'s schedule saved`);
     } catch {
       toast.error("Failed to save schedule");
     } finally {
@@ -68,128 +69,171 @@ function ShiftSettingsPanel({ member }: { member: StaffProfile }) {
   };
 
   return (
-    <div className="mt-3 space-y-4 pl-12 pr-2">
+    <div className="space-y-3 pt-1">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        Weekly Working Hours
+      </p>
 
-      {/* Shift window */}
-      <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5 text-gold" />
-            <p className="text-sm font-semibold text-foreground">Shift Hours</p>
-          </div>
-          <Switch
-            checked={shiftEnabled}
-            onCheckedChange={(v) => setShiftEnabled(v)}
-          />
-        </div>
-        {shiftEnabled && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Shift Start
-              </Label>
-              <Input
-                type="time"
-                value={shiftStart}
-                onChange={(e) => setShiftStart(e.target.value)}
-                className="bg-secondary border-border text-sm h-9"
-              />
+      <div className="space-y-1.5">
+        {DAYS.map((day) => {
+          const d = avail[day];
+          return (
+            <div
+              key={day}
+              className={`rounded-xl border transition-colors ${
+                d.enabled ? "border-border bg-secondary/30" : "border-border/50 bg-secondary/10 opacity-60"
+              }`}
+            >
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                {/* Day toggle checkbox */}
+                <button
+                  onClick={() => toggle(day)}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                    d.enabled
+                      ? "border-transparent bg-gold"
+                      : "border-border bg-transparent"
+                  }`}
+                >
+                  {d.enabled && (
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Day label */}
+                <span className={`text-xs font-semibold w-7 flex-shrink-0 ${d.enabled ? "text-foreground" : "text-muted-foreground"}`}>
+                  {day}
+                </span>
+
+                {d.enabled ? (
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <input
+                      type="time"
+                      value={d.start}
+                      onChange={(e) => setTime(day, "start", e.target.value)}
+                      className="flex-1 bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-gold/60 transition-colors min-w-0"
+                    />
+                    <span className="text-muted-foreground text-xs flex-shrink-0">–</span>
+                    <input
+                      type="time"
+                      value={d.end}
+                      onChange={(e) => setTime(day, "end", e.target.value)}
+                      className="flex-1 bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-gold/60 transition-colors min-w-0"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic flex-1">Off</span>
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Shift End
-              </Label>
-              <Input
-                type="time"
-                value={shiftEnd}
-                onChange={(e) => setShiftEnd(e.target.value)}
-                className="bg-secondary border-border text-sm h-9"
-              />
-            </div>
-          </div>
-        )}
-        {!shiftEnabled && (
-          <p className="text-xs text-muted-foreground">
-            No shift window set — all day slots (9 AM–7 PM) are available.
-          </p>
-        )}
+          );
+        })}
       </div>
 
-      {/* Lunch / break */}
-      <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Coffee className="w-3.5 h-3.5 text-gold" />
-            <p className="text-sm font-semibold text-foreground">Lunch / Break</p>
-          </div>
-          <Switch
-            checked={breakEnabled}
-            onCheckedChange={(v) => setBreakEnabled(v)}
-          />
-        </div>
-        {breakEnabled && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Break Start
-              </Label>
-              <Input
-                type="time"
-                value={breakStart}
-                onChange={(e) => setBreakStart(e.target.value)}
-                className="bg-secondary border-border text-sm h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Break End
-              </Label>
-              <Input
-                type="time"
-                value={breakEnd}
-                onChange={(e) => setBreakEnd(e.target.value)}
-                className="bg-secondary border-border text-sm h-9"
-              />
-            </div>
-          </div>
-        )}
-        {breakEnabled && (
-          <p className="text-xs text-muted-foreground">
-            Slots overlapping this window will be removed from the booking calendar.
-          </p>
-        )}
-        {!breakEnabled && (
-          <p className="text-xs text-muted-foreground">
-            No break defined — bookings can be made throughout the shift.
-          </p>
-        )}
-      </div>
-
-      {/* Current schedule summary */}
-      {(member.shift_start || member.break_start) && (
-        <div className="flex flex-wrap gap-2 text-[10px]">
-          {member.shift_start && (
-            <span className="flex items-center gap-1 bg-gold/10 text-gold border border-gold/20 px-2 py-0.5 rounded-full">
-              <Clock className="w-2.5 h-2.5" />
-              {fmt24(member.shift_start)} – {fmt24(member.shift_end)}
-            </span>
-          )}
-          {member.break_start && (
-            <span className="flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
-              <Coffee className="w-2.5 h-2.5" />
-              Break {fmt24(member.break_start)} – {fmt24(member.break_end)}
-            </span>
-          )}
-        </div>
-      )}
-
-      <Button
+      <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full gradient-gold text-primary-foreground font-semibold h-9 text-sm"
+        className="w-full py-2 rounded-xl gradient-gold text-primary-foreground font-semibold text-xs transition-opacity disabled:opacity-60 flex items-center justify-center gap-1.5"
       >
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Schedule"}
-      </Button>
+        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Schedule"}
+      </button>
+    </div>
+  );
+}
+
+// ── Staff Row ─────────────────────────────────────────────────────────────────
+function StaffRow({
+  member,
+  colorIndex,
+  onDelete,
+}: {
+  member: StaffProfile;
+  colorIndex: number;
+  onDelete: () => void;
+}) {
+  const toggleClock = useToggleClockIn();
+  const [expanded, setExpanded] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const color = member.color ?? AVATAR_COLORS[colorIndex % AVATAR_COLORS.length];
+
+  const handleToggle = async () => {
+    setToggling(true);
+    try {
+      await toggleClock.mutateAsync({ id: member.id, is_clocked_in: !member.is_clocked_in });
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
+      member.is_clocked_in ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"
+    }`}>
+      {/* ── Top row: avatar / name / presence toggle / expand ── */}
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        {/* Avatar */}
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm"
+          style={{ backgroundColor: color }}
+        >
+          {initials(member.name)}
+        </div>
+
+        {/* Name + schedule summary */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground leading-tight">{member.name}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+            {member.weekly_availability
+              ? DAYS.filter((d) => member.weekly_availability![d].enabled).join(", ") || "No days set"
+              : "Schedule not set"}
+          </p>
+        </div>
+
+        {/* Presence toggle */}
+        <button
+          onClick={handleToggle}
+          disabled={toggling}
+          title={member.is_clocked_in ? "Clock out" : "Clock in"}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all flex-shrink-0 ${
+            member.is_clocked_in
+              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/25"
+              : "bg-secondary border-border text-muted-foreground hover:border-border/80 hover:bg-secondary/80"
+          }`}
+        >
+          {toggling ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${member.is_clocked_in ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+          )}
+          {member.is_clocked_in ? "On Floor" : "Off Duty"}
+        </button>
+
+        {/* Expand schedule */}
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
+        >
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {/* Delete */}
+        <button
+          onClick={onDelete}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* ── Expanded: weekly availability grid ── */}
+      {expanded && (
+        <div className="border-t border-border px-4 pb-4 pt-3">
+          <WeeklyGrid member={member} />
+        </div>
+      )}
     </div>
   );
 }
@@ -197,39 +241,32 @@ function ShiftSettingsPanel({ member }: { member: StaffProfile }) {
 // ── Main Widget ───────────────────────────────────────────────────────────────
 export default function StaffCheckInWidget({ restaurantId }: { restaurantId: string }) {
   const { data: staff, isLoading } = useStaff(restaurantId);
-  const toggleClock  = useToggleClockIn();
-  const createStaff  = useCreateStaff();
-  const deleteStaff  = useDeleteStaff();
+  const createStaff = useCreateStaff();
+  const deleteStaff = useDeleteStaff();
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [newName, setNewName]       = useState("");
-  const [adding, setAdding]         = useState(false);
-
-  const handleToggle = async (id: string, current: boolean) => {
-    try {
-      await toggleClock.mutateAsync({ id, is_clocked_in: !current });
-    } catch {
-      toast.error("Failed to update clock-in status");
-    }
-  };
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
+    setCreating(true);
     try {
       await createStaff.mutateAsync({ restaurant_id: restaurantId, name });
       setNewName("");
       setAdding(false);
-      toast.success(`${name} added to staff`);
-    } catch {
-      toast.error("Failed to add staff member");
+      toast.success(`${name} added to team`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to add staff member");
+    } finally {
+      setCreating(false);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
     try {
       await deleteStaff.mutateAsync(id);
-      if (expandedId === id) setExpandedId(null);
       toast.success(`${name} removed`);
     } catch {
       toast.error("Failed to remove staff member");
@@ -237,105 +274,43 @@ export default function StaffCheckInWidget({ restaurantId }: { restaurantId: str
   };
 
   const clockedIn = (staff ?? []).filter((s) => s.is_clocked_in).length;
-  const total     = (staff ?? []).length;
+  const total = (staff ?? []).length;
 
   return (
-    <div className="space-y-4">
-      {/* Summary pill */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs font-semibold text-green-400">{clockedIn} clocked in</span>
+    <div className="space-y-5">
+
+      {/* ── Summary bar ── */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+          <span className="text-xs font-bold text-emerald-400">{clockedIn} on floor</span>
         </div>
-        <span className="text-xs text-muted-foreground">{total} staff total</span>
+        <span className="text-xs text-muted-foreground">{total} team member{total !== 1 ? "s" : ""}</span>
       </div>
 
-      {/* Staff list */}
+      {/* ── Staff list ── */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
+        <div className="flex items-center justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : total === 0 ? (
-        <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+        <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-2xl">
           No staff yet. Add your first team member below.
         </div>
       ) : (
-        <div className="space-y-2">
-          {(staff ?? []).map((member, i) => {
-            const color    = member.color ?? AVATAR_COLORS[i % AVATAR_COLORS.length];
-            const expanded = expandedId === member.id;
-
-            return (
-              <div
-                key={member.id}
-                className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-                  member.is_clocked_in
-                    ? "border-green-500/25 bg-green-500/5"
-                    : "border-border bg-secondary/20"
-                }`}
-              >
-                {/* Row */}
-                <div className="flex items-center gap-3 px-4 py-3">
-                  {/* Avatar */}
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
-                    style={{ backgroundColor: color }}
-                  >
-                    {initials(member.name)}
-                  </div>
-
-                  {/* Name + schedule summary */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground leading-tight">{member.name}</p>
-                    <p className={`text-xs leading-tight ${member.is_clocked_in ? "text-green-400" : "text-muted-foreground"}`}>
-                      {member.is_clocked_in ? "Clocked In" : "Clocked Out"}
-                      {member.shift_start && (
-                        <span className="text-muted-foreground ml-1.5">
-                          · {fmt24(member.shift_start)}–{fmt24(member.shift_end)}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* Expand shift settings */}
-                  <button
-                    onClick={() => setExpandedId(expanded ? null : member.id)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
-                    title="Shift settings"
-                  >
-                    {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-
-                  {/* Clock-in toggle */}
-                  <Switch
-                    checked={member.is_clocked_in}
-                    onCheckedChange={() => handleToggle(member.id, member.is_clocked_in)}
-                    disabled={toggleClock.isPending}
-                  />
-
-                  {/* Delete */}
-                  <button
-                    onClick={() => handleDelete(member.id, member.name)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
-                    title="Remove"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Shift Settings Panel — expands inline */}
-                {expanded && (
-                  <div className="border-t border-border pb-4">
-                    <ShiftSettingsPanel member={member} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="space-y-3">
+          {(staff ?? []).map((member, i) => (
+            <StaffRow
+              key={member.id}
+              member={member}
+              colorIndex={i}
+              onDelete={() => handleDelete(member.id, member.name)}
+            />
+          ))}
         </div>
       )}
 
-      {/* Add new staff */}
+      {/* ── Add new staff ── */}
       {adding ? (
         <div className="flex gap-2">
           <Input
@@ -345,34 +320,39 @@ export default function StaffCheckInWidget({ restaurantId }: { restaurantId: str
               if (e.key === "Enter") handleAdd();
               if (e.key === "Escape") { setAdding(false); setNewName(""); }
             }}
-            placeholder="Staff member name"
-            className="bg-secondary border-border flex-1"
+            placeholder="Full name"
+            className="bg-secondary border-border flex-1 h-9 text-sm"
             autoFocus
           />
           <Button
             onClick={handleAdd}
-            disabled={!newName.trim() || createStaff.isPending}
-            className="gradient-gold text-primary-foreground px-4"
+            disabled={!newName.trim() || creating}
+            className="gradient-gold text-primary-foreground px-4 h-9 text-sm font-semibold"
           >
-            {createStaff.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add"}
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add"}
           </Button>
-          <Button variant="ghost" onClick={() => { setAdding(false); setNewName(""); }} className="text-muted-foreground px-3">
+          <Button
+            variant="ghost"
+            onClick={() => { setAdding(false); setNewName(""); }}
+            className="text-muted-foreground px-3 h-9"
+          >
             Cancel
           </Button>
         </div>
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-gold hover:border-gold/40 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-border rounded-2xl text-sm text-muted-foreground hover:text-gold hover:border-gold/40 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Add Staff Member
+          Add Team Member
         </button>
       )}
 
-      <div className="rounded-lg border border-border bg-secondary/20 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
-        <span className="text-foreground font-medium">Click the chevron</span> next to any staff member to configure their shift hours, break window, and per-service duration overrides.
-        Breaks are treated as hard-blocked time and are removed from the client booking calendar automatically.
+      {/* ── Help note ── */}
+      <div className="rounded-xl border border-border bg-secondary/20 px-3.5 py-3 text-xs text-muted-foreground leading-relaxed">
+        <span className="text-foreground font-semibold">Expand any row</span> to configure their standard weekly schedule.
+        Use the <span className="text-foreground font-medium">On Floor / Off Duty</span> toggle to override booking availability in real-time for today.
       </div>
     </div>
   );

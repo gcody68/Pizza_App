@@ -1,16 +1,34 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export type DayAvailability = {
+  enabled: boolean;
+  start: string;  // "HH:MM"
+  end: string;    // "HH:MM"
+};
+
+export type WeeklyAvailability = {
+  Mon: DayAvailability;
+  Tue: DayAvailability;
+  Wed: DayAvailability;
+  Thu: DayAvailability;
+  Fri: DayAvailability;
+  Sat: DayAvailability;
+  Sun: DayAvailability;
+};
+
 export type StaffProfile = {
   id: string;
   restaurant_id: string;
   name: string;
   is_clocked_in: boolean;
   color: string | null;
+  color_index: number | null;
   shift_start: string | null;  // "HH:MM" 24h
   shift_end: string | null;
   break_start: string | null;
   break_end: string | null;
+  weekly_availability: WeeklyAvailability | null;
   created_at: string;
 };
 
@@ -103,14 +121,26 @@ export function useUpdateStaffSchedule() {
   });
 }
 
+const PALETTE = [
+  "#C9A84C", "#7EB8B0", "#E07B7B", "#A07BD4", "#60A5FA", "#34D399", "#FB923C",
+];
+
 export function useCreateStaff() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ restaurant_id, name }: { restaurant_id: string; name: string }) => {
+      // Determine next color index based on existing staff count
+      const { data: existing } = await supabase
+        .from("staff_profiles")
+        .select("id")
+        .eq("restaurant_id", restaurant_id);
+      const colorIndex = (existing?.length ?? 0) % PALETTE.length;
+      const color = PALETTE[colorIndex];
+
       const { error } = await supabase
         .from("staff_profiles")
-        .insert({ restaurant_id, name, is_clocked_in: false });
-      if (error) throw error;
+        .insert({ restaurant_id, name, is_clocked_in: false, color, color_index: colorIndex });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["staff"] }),
   });
@@ -126,6 +156,29 @@ export function useDeleteStaff() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staff"] });
       qc.invalidateQueries({ queryKey: ["staff-clocked-in"] });
+    },
+  });
+}
+
+export function useUpdateStaffAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      weekly_availability,
+    }: {
+      id: string;
+      weekly_availability: WeeklyAvailability | null;
+    }) => {
+      const { error } = await supabase
+        .from("staff_profiles")
+        .update({ weekly_availability })
+        .eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff"] });
+      qc.invalidateQueries({ queryKey: ["available-slots"] });
     },
   });
 }

@@ -201,38 +201,73 @@ interface HighlightBlock {
   durationHours: number;
 }
 
-function AppointmentCard({ appt, onClick, highlighted }: { appt: Appointment; onClick: () => void; highlighted?: boolean }) {
+/** Derive a soft background and border from the stylist's avatar hex color */
+function stylistCardPalette(avatarColor: string): { bg: string; border: string; text: string } {
+  // Parse hex → lighten heavily for bg, use slightly lighter for border
+  const hex = avatarColor.replace("#", "");
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  // Mix with white at ~82% for the card bg, ~60% for border
+  const mix = (c: number, pct: number) => Math.round(c + (255 - c) * pct);
+  const bgR = mix(r, 0.82); const bgG = mix(g, 0.82); const bgB = mix(b, 0.82);
+  const bdR = mix(r, 0.60); const bdG = mix(g, 0.60); const bdB = mix(b, 0.60);
+  return {
+    bg: `rgb(${bgR},${bgG},${bgB})`,
+    border: `rgb(${bdR},${bdG},${bdB})`,
+    text: "rgb(30,27,24)",
+  };
+}
+
+function AppointmentCard({
+  appt, onClick, highlighted, stylistColor,
+}: {
+  appt: Appointment;
+  onClick: () => void;
+  highlighted?: boolean;
+  stylistColor: string;
+}) {
   const topPx = (appt.startHour - HOUR_START) * PX_PER_HOUR;
   const heightPx = appt.durationHours * PX_PER_HOUR - 2;
   const processingHeight = appt.processingMins ? (appt.processingMins / 60) * PX_PER_HOUR : 0;
   const mainHeight = heightPx - processingHeight;
   const isCompleted = appt.status === "completed";
+  const { bg, border } = stylistCardPalette(stylistColor);
 
   return (
     <div className="absolute left-1 right-1 flex flex-col" style={{ top: topPx + 1, height: heightPx }}>
       <button
         onClick={onClick}
-        className={`flex-shrink-0 rounded-xl overflow-hidden text-left transition-all duration-200 hover:brightness-95 hover:shadow-lg active:scale-[0.99] ${isCompleted ? "opacity-60" : ""} ${highlighted ? "ring-2 ring-emerald-500 ring-offset-1 shadow-[0_0_16px_4px_rgba(52,211,153,0.35)]" : ""}`}
-        style={{ height: mainHeight, background: appt.color, border: `1.5px solid ${appt.color}` }}
+        className={`flex-shrink-0 rounded-xl overflow-hidden text-left transition-all duration-200 hover:brightness-95 hover:shadow-lg active:scale-[0.99] ${isCompleted ? "opacity-55" : ""} ${highlighted ? "ring-2 ring-emerald-500 ring-offset-1 shadow-[0_0_16px_4px_rgba(52,211,153,0.35)]" : ""}`}
+        style={{ height: mainHeight, background: bg, border: `1.5px solid ${border}` }}
       >
         <div className="px-2 py-1.5 h-full flex flex-col justify-between">
-          <div>
+          {/* Stylist color accent bar */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
+            style={{ background: stylistColor }}
+          />
+          <div className="pl-1">
             <p className="text-[11px] font-bold text-stone-800 leading-tight truncate">{appt.clientName}</p>
             {mainHeight > 45 && (
               <p className="text-[10px] text-stone-600 leading-tight mt-0.5 truncate">{appt.service}</p>
             )}
           </div>
           {mainHeight > 65 && (
-            <div className="mt-auto"><StatusPill status={appt.status} /></div>
+            <div className="mt-auto pl-1"><StatusPill status={appt.status} /></div>
           )}
         </div>
       </button>
       {appt.processingMins && processingHeight > 0 && (
         <div
-          className="flex-shrink-0 mt-0.5 rounded-lg border-2 border-dashed border-amber-300/60 bg-amber-50/40 flex items-center justify-center"
-          style={{ height: processingHeight - 2 }}
+          className="flex-shrink-0 mt-0.5 rounded-lg border-2 border-dashed flex items-center justify-center"
+          style={{
+            height: processingHeight - 2,
+            borderColor: border,
+            background: bg + "88",
+          }}
         >
-          <div className="flex items-center gap-1 text-amber-600/70">
+          <div className="flex items-center gap-1" style={{ color: stylistColor }}>
             <Clock className="w-3 h-3" />
             <span className="text-[10px] font-medium">{appt.processingMins}m processing</span>
           </div>
@@ -1189,6 +1224,7 @@ export default function CalendarBooking() {
                     <AppointmentCard
                       key={appt.id}
                       appt={appt}
+                      stylistColor={stylist.avatarColor}
                       highlighted={selectedAppt?.appt.id === appt.id}
                       onClick={() => setSelectedAppt({ appt, stylistId: stylist.id })}
                     />
