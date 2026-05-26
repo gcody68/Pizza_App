@@ -1,11 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Clock, Search, Bell, User, Scissors, Star, Package, CreditCard, X, ChevronDown, Check, Smartphone, ArrowLeft, Zap, TriangleAlert as AlertTriangle, CalendarDays, MoveHorizontal as MoreHorizontal, Filter, TrendingUp, Pencil, FlaskConical, Link2, DollarSign, Users, ChartBar as BarChart3, UserCheck } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Plus, Scissors, Bell, X, ChevronDown,
+  Check, ArrowLeft, Zap, CalendarDays, MoveHorizontal as MoreHorizontal,
+  Filter, DollarSign, Users, ChartBar as BarChart3, UserCheck,
+  CreditCard, Pencil,
+} from "lucide-react";
 import StaffCheckInWidget, { type SeedStylist } from "@/components/StaffCheckInWidget";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
 type AppointmentStatus = "confirmed" | "arrived" | "in-chair" | "processing" | "completed" | "no-show";
 
 interface Appointment {
@@ -14,14 +18,12 @@ interface Appointment {
   service: string;
   startHour: number;
   durationHours: number;
-  processingMins?: number;
   status: AppointmentStatus;
   color: string;
   price: number;
   phone?: string;
   notes?: string;
-  preferences?: string;
-  photo?: string;
+  date: string; // ISO yyyy-mm-dd
 }
 
 interface Stylist {
@@ -32,889 +34,307 @@ interface Stylist {
   appointments: Appointment[];
 }
 
-interface InventoryAlert {
-  product: string;
-  current: number;
-  min: number;
-  unit: string;
-}
-
-interface WaitlistClient {
-  name: string;
-  service: string;
-  waitingSince: string;
-  preferredStylist?: string;
-  preferredStylistId?: string;
-  phone: string;
-  // highlight window: which stylist column + time block to illuminate
-  matchStylistId?: string;
-  matchStartHour?: number;
-  matchDurationHours?: number;
-}
-
-interface RetailProduct {
-  id: string;
-  name: string;
-  price: number;
-  selected: boolean;
-}
-
-interface AddOnService {
-  id: string;
-  name: string;
-  price: number;
-}
-
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-
+// ── Constants ─────────────────────────────────────────────────────────────────
 const HOUR_START = 8;
 const HOUR_END = 20;
 const TOTAL_HOURS = HOUR_END - HOUR_START;
 const PX_PER_HOUR = 80;
-
-const ADD_ON_SERVICES: AddOnService[] = [
-  { id: "s1", name: "Gloss Treatment", price: 45 },
-  { id: "s2", name: "Deep Conditioning", price: 35 },
-  { id: "s3", name: "Scalp Massage", price: 25 },
-  { id: "s4", name: "Olaplex Treatment", price: 40 },
-  { id: "s5", name: "Bang Trim", price: 15 },
-];
-
-const INITIAL_STYLISTS: Stylist[] = [
-  {
-    id: "kelly",
-    name: "Kelly Stanton",
-    initials: "KS",
-    avatarColor: "#C9A84C",
-    appointments: [
-      { id: "a1", clientName: "Mara Collins", service: "Balayage & Cut", startHour: 9, durationHours: 2.5, processingMins: 40, status: "in-chair", color: "#e8d5b0", price: 195, notes: "Level 7 base, use Olaplex No.1 in lightener", preferences: "Prefers oat milk lattes, loves talking about her kids.", phone: "(312) 555-0182" },
-      { id: "a2", clientName: "Jessica Park", service: "Root Touch-Up", startHour: 12.5, durationHours: 1, status: "confirmed", color: "#b5cce4", price: 75, phone: "(312) 555-0199" },
-      { id: "a3", clientName: "Tori Huang", service: "Keratin Smoothing", startHour: 14, durationHours: 2.5, status: "confirmed", color: "#c4e4c4", price: 220, phone: "(312) 555-0174" },
-    ],
-  },
-  {
-    id: "abbey",
-    name: "Abbey Krutzer",
-    initials: "AK",
-    avatarColor: "#7EB8B0",
-    appointments: [
-      { id: "b1", clientName: "Sofia Reyes", service: "Women's Cut & Style", startHour: 8.5, durationHours: 1, status: "completed", color: "#d4c8e8", price: 75, phone: "(312) 555-0155" },
-      { id: "b2", clientName: "Danielle Moore", service: "Full Color + Gloss", startHour: 10, durationHours: 2, processingMins: 35, status: "arrived", color: "#f0c8c8", price: 145, phone: "(312) 555-0163" },
-      { id: "b3", clientName: "Priya Kapoor", service: "Highlights", startHour: 13, durationHours: 1.5, status: "confirmed", color: "#e8e0c4", price: 130, phone: "(312) 555-0141" },
-      { id: "b4", clientName: "Lauren West", service: "Blowout", startHour: 15.5, durationHours: 0.75, status: "confirmed", color: "#c4dce4", price: 55, phone: "(312) 555-0188" },
-    ],
-  },
-  {
-    id: "nina",
-    name: "Nina Torres",
-    initials: "NT",
-    avatarColor: "#E07B7B",
-    appointments: [
-      { id: "c1", clientName: "Alexis Chen", service: "Men's Cut", startHour: 9, durationHours: 0.5, status: "completed", color: "#d4e8c4", price: 45, phone: "(312) 555-0122" },
-      { id: "c2", clientName: "Brooke Ellis", service: "Bang Trim + Style", startHour: 10.5, durationHours: 0.5, status: "completed", color: "#e8d4c4", price: 30, phone: "(312) 555-0133" },
-      { id: "c3", clientName: "Rachel Kim", service: "Scalp Treatment", startHour: 11.5, durationHours: 0.75, status: "arrived", color: "#c8d4e8", price: 65, phone: "(312) 555-0144" },
-      { id: "c4", clientName: "Hannah Scott", service: "Balayage", startHour: 13.5, durationHours: 3, processingMins: 45, status: "confirmed", color: "#e8d5b0", price: 185, phone: "(312) 555-0177" },
-    ],
-  },
-  {
-    id: "marcus",
-    name: "Marcus Bell",
-    initials: "MB",
-    avatarColor: "#A07BD4",
-    appointments: [
-      { id: "d1", clientName: "Claire Nguyen", service: "Color Correction", startHour: 9.5, durationHours: 3.5, processingMins: 60, status: "in-chair", color: "#f8c8a8", price: 320, notes: "Lifting from box dye black. Pre-lightener session 1 of 2.", phone: "(312) 555-0198" },
-      { id: "d2", clientName: "Olivia Hart", service: "Gloss Treatment", startHour: 14.5, durationHours: 0.75, status: "confirmed", color: "#c4e4e0", price: 55, phone: "(312) 555-0165" },
-    ],
-  },
-];
-
-const INVENTORY_ALERTS: InventoryAlert[] = [
-  { product: "Redken 9V Violet", current: 1, min: 3, unit: "tube" },
-  { product: "Olaplex No.1 Bond Multiplier", current: 0, min: 2, unit: "bottle" },
-  { product: "Schwarzkopf 7-0", current: 2, min: 4, unit: "tube" },
-];
-
-const WAITLIST: WaitlistClient[] = [
-  {
-    name: "Camille Roy",
-    service: "Balayage & Cut",
-    waitingSince: "8:15am",
-    preferredStylist: "Kelly Stanton",
-    preferredStylistId: "kelly",
-    phone: "(312) 555-0101",
-    matchStylistId: "kelly",
-    matchStartHour: 11.75,
-    matchDurationHours: 0.75,
-  },
-  { name: "Jess Marino", service: "Root Touch-Up", waitingSince: "8:40am", phone: "(312) 555-0112" },
-];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatHour(h: number): string {
-  const hour = Math.floor(h);
-  const min = Math.round((h - hour) * 60);
-  const ampm = hour >= 12 ? "pm" : "am";
-  const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-  return min === 0 ? `${displayHour}${ampm}` : `${displayHour}:${min.toString().padStart(2, "0")}${ampm}`;
-}
-
-function statusConfig(s: AppointmentStatus) {
-  switch (s) {
-    case "confirmed":  return { label: "Confirmed",  bg: "bg-slate-100 text-slate-600",    dot: "bg-slate-400" };
-    case "arrived":    return { label: "Arrived",    bg: "bg-amber-50 text-amber-700",     dot: "bg-amber-400" };
-    case "in-chair":   return { label: "In Chair",   bg: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" };
-    case "processing": return { label: "Processing", bg: "bg-sky-50 text-sky-700",         dot: "bg-sky-400" };
-    case "completed":  return { label: "Completed",  bg: "bg-stone-100 text-stone-500",    dot: "bg-stone-400" };
-    case "no-show":    return { label: "No Show",    bg: "bg-red-50 text-red-600",         dot: "bg-red-400" };
-  }
-}
-
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_LABELS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-function getWeekDates(base: Date): Date[] {
-  const d = new Date(base);
-  d.setDate(d.getDate() - d.getDay());
+function toISO(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+function getWeekDates(d: Date) {
+  const start = new Date(d);
+  start.setDate(d.getDate() - d.getDay());
   return Array.from({ length: 7 }, (_, i) => {
-    const nd = new Date(d);
-    nd.setDate(d.getDate() + i);
-    return nd;
+    const x = new Date(start);
+    x.setDate(start.getDate() + i);
+    return x;
   });
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Initial mock data (keyed by date) ─────────────────────────────────────────
+const TODAY = toISO(new Date());
+const TOMORROW = toISO(new Date(Date.now() + 86400000));
 
-function StatusPill({ status }: { status: AppointmentStatus }) {
-  const cfg = statusConfig(status);
+const INITIAL_STYLISTS: Stylist[] = [
+  {
+    id: "kelly", name: "Kelly Stanton", initials: "KS", avatarColor: "#C9A84C",
+    appointments: [
+      { id: "a1", clientName: "Mara Collins", service: "Balayage & Cut", startHour: 9, durationHours: 2.5, status: "in-chair", color: "#e8d5b0", price: 195, phone: "(312) 555-0182", date: TODAY },
+      { id: "a2", clientName: "Jessica Park", service: "Root Touch-Up", startHour: 12.5, durationHours: 1, status: "confirmed", color: "#b5cce4", price: 75, date: TODAY },
+      { id: "a3", clientName: "Tori Huang", service: "Keratin Smoothing", startHour: 9, durationHours: 2, status: "confirmed", color: "#c4e4c4", price: 220, date: TOMORROW },
+    ],
+  },
+  {
+    id: "abbey", name: "Abbey Krutzer", initials: "AK", avatarColor: "#7EB8B0",
+    appointments: [
+      { id: "a4", clientName: "Danielle Roe", service: "Cut & Style", startHour: 10, durationHours: 1.5, status: "arrived", color: "#d4c4e4", price: 85, date: TODAY },
+      { id: "a5", clientName: "Priya Nair", service: "Color Refresh", startHour: 13, durationHours: 2, status: "confirmed", color: "#f4d4b0", price: 145, date: TODAY },
+      { id: "a6", clientName: "Sam Lee", service: "Blowout", startHour: 10, durationHours: 1, status: "confirmed", color: "#e4b0b0", price: 55, date: TOMORROW },
+    ],
+  },
+  {
+    id: "nina", name: "Nina Torres", initials: "NT", avatarColor: "#E07B7B",
+    appointments: [
+      { id: "a7", clientName: "Chloe Martin", service: "Highlights", startHour: 9.5, durationHours: 2, status: "completed", color: "#d0e4d0", price: 165, date: TODAY },
+      { id: "a8", clientName: "Rachel Kim", service: "Gloss Treatment", startHour: 14, durationHours: 1, status: "confirmed", color: "#e4d4c4", price: 65, date: TODAY },
+    ],
+  },
+];
+
+// ── Status config ──────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<AppointmentStatus, { label: string; bg: string; text: string; dot: string }> = {
+  confirmed: { label: "Confirmed", bg: "bg-sky-50 border-sky-200", text: "text-sky-700", dot: "bg-sky-400" },
+  arrived: { label: "Arrived", bg: "bg-amber-50 border-amber-200", text: "text-amber-700", dot: "bg-amber-400" },
+  "in-chair": { label: "In Chair", bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+  processing: { label: "Processing", bg: "bg-violet-50 border-violet-200", text: "text-violet-700", dot: "bg-violet-500" },
+  completed: { label: "Completed", bg: "bg-stone-50 border-stone-200", text: "text-stone-600", dot: "bg-stone-400" },
+  "no-show": { label: "No Show", bg: "bg-red-50 border-red-200", text: "text-red-700", dot: "bg-red-400" },
+};
+
+// ── Time gutter ───────────────────────────────────────────────────────────────
+function TimeGutter() {
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
+    <div className="flex-shrink-0 w-14" style={{ height: TOTAL_HOURS * PX_PER_HOUR }}>
+      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => {
+        const h = HOUR_START + i;
+        const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+        return (
+          <div key={h} className="relative" style={{ height: PX_PER_HOUR }}>
+            <span className="absolute -top-2.5 left-0 right-0 text-center text-[10px] text-stone-300 font-medium">{label}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
-interface HighlightBlock {
-  stylistId: string;
-  startHour: number;
-  durationHours: number;
-}
-
-/** Derive a soft background and border from the stylist's avatar hex color */
-function stylistCardPalette(avatarColor: string): { bg: string; border: string; text: string } {
-  // Parse hex → lighten heavily for bg, use slightly lighter for border
-  const hex = avatarColor.replace("#", "");
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  // Mix with white at ~82% for the card bg, ~60% for border
-  const mix = (c: number, pct: number) => Math.round(c + (255 - c) * pct);
-  const bgR = mix(r, 0.82); const bgG = mix(g, 0.82); const bgB = mix(b, 0.82);
-  const bdR = mix(r, 0.60); const bdG = mix(g, 0.60); const bdB = mix(b, 0.60);
-  return {
-    bg: `rgb(${bgR},${bgG},${bgB})`,
-    border: `rgb(${bdR},${bdG},${bdB})`,
-    text: "rgb(30,27,24)",
-  };
-}
-
-function AppointmentCard({
-  appt, onClick, highlighted, stylistColor,
+// ── Appointment block ─────────────────────────────────────────────────────────
+function ApptBlock({
+  appt, onClick, highlighted,
 }: {
   appt: Appointment;
   onClick: () => void;
-  highlighted?: boolean;
-  stylistColor: string;
+  highlighted: boolean;
 }) {
-  const topPx = (appt.startHour - HOUR_START) * PX_PER_HOUR;
-  const heightPx = appt.durationHours * PX_PER_HOUR - 2;
-  const processingHeight = appt.processingMins ? (appt.processingMins / 60) * PX_PER_HOUR : 0;
-  const mainHeight = heightPx - processingHeight;
-  const isCompleted = appt.status === "completed";
-  const { bg, border } = stylistCardPalette(stylistColor);
-
-  return (
-    <div className="absolute left-1 right-1 flex flex-col" style={{ top: topPx + 1, height: heightPx }}>
-      <button
-        onClick={onClick}
-        className={`flex-shrink-0 rounded-xl overflow-hidden text-left transition-all duration-200 hover:brightness-95 hover:shadow-lg active:scale-[0.99] ${isCompleted ? "opacity-55" : ""} ${highlighted ? "ring-2 ring-emerald-500 ring-offset-1 shadow-[0_0_16px_4px_rgba(52,211,153,0.35)]" : ""}`}
-        style={{ height: mainHeight, background: bg, border: `1.5px solid ${border}` }}
-      >
-        <div className="px-2 py-1.5 h-full flex flex-col justify-between">
-          {/* Stylist color accent bar */}
-          <div
-            className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
-            style={{ background: stylistColor }}
-          />
-          <div className="pl-1">
-            <p className="text-[11px] font-bold text-stone-800 leading-tight truncate">{appt.clientName}</p>
-            {mainHeight > 45 && (
-              <p className="text-[10px] text-stone-600 leading-tight mt-0.5 truncate">{appt.service}</p>
-            )}
-          </div>
-          {mainHeight > 65 && (
-            <div className="mt-auto pl-1"><StatusPill status={appt.status} /></div>
-          )}
-        </div>
-      </button>
-      {appt.processingMins && processingHeight > 0 && (
-        <div
-          className="flex-shrink-0 mt-0.5 rounded-lg border-2 border-dashed flex items-center justify-center"
-          style={{
-            height: processingHeight - 2,
-            borderColor: border,
-            background: bg + "88",
-          }}
-        >
-          <div className="flex items-center gap-1" style={{ color: stylistColor }}>
-            <Clock className="w-3 h-3" />
-            <span className="text-[10px] font-medium">{appt.processingMins}m processing</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HighlightSlot({ block }: { block: HighlightBlock }) {
-  const topPx = (block.startHour - HOUR_START) * PX_PER_HOUR;
-  const heightPx = block.durationHours * PX_PER_HOUR - 4;
+  const top = (appt.startHour - HOUR_START) * PX_PER_HOUR;
+  const height = Math.max(appt.durationHours * PX_PER_HOUR - 4, 28);
+  const sc = STATUS_CONFIG[appt.status];
   return (
     <div
-      className="absolute left-1 right-1 rounded-xl pointer-events-none z-10 animate-pulse"
-      style={{
-        top: topPx + 2,
-        height: heightPx,
-        background: "rgba(52,211,153,0.15)",
-        border: "2px dashed rgba(52,211,153,0.7)",
-        boxShadow: "0 0 20px 4px rgba(52,211,153,0.2)",
-      }}
+      onClick={onClick}
+      className={`absolute left-1 right-1 rounded-xl border px-2 py-1.5 cursor-pointer hover:shadow-md transition-all group ${sc.bg} ${highlighted ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
+      style={{ top, height }}
     >
-      <div className="flex items-center justify-center h-full gap-1.5">
-        <Zap className="w-3.5 h-3.5 text-emerald-600" />
-        <span className="text-[11px] font-bold text-emerald-700">Open · Quick Match</span>
-      </div>
+      <p className={`text-[11px] font-bold truncate ${sc.text}`}>{appt.clientName}</p>
+      {height > 40 && <p className="text-[10px] text-stone-400 truncate">{appt.service}</p>}
+      {height > 56 && <p className="text-[10px] text-stone-400">${appt.price}</p>}
     </div>
   );
 }
 
-function TimeGutter() {
-  return (
-    <div className="flex-shrink-0 w-14 relative" style={{ height: TOTAL_HOURS * PX_PER_HOUR }}>
-      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
-        <div key={i} className="absolute right-2 flex items-center" style={{ top: i * PX_PER_HOUR - 8 }}>
-          <span className="text-[10px] text-stone-400 font-medium whitespace-nowrap">{formatHour(HOUR_START + i)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function GridLines() {
-  return (
-    <div className="absolute inset-0 pointer-events-none">
-      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
-        <div key={i} className="absolute left-0 right-0 border-t border-stone-100" style={{ top: i * PX_PER_HOUR }} />
-      ))}
-      {Array.from({ length: TOTAL_HOURS * 2 }, (_, i) => (
-        <div key={`h${i}`} className="absolute left-0 right-0 border-t border-stone-50" style={{ top: (i + 0.5) * PX_PER_HOUR }} />
-      ))}
-    </div>
-  );
-}
-
-function NowIndicator() {
-  const now = new Date();
-  const currentHour = now.getHours() + now.getMinutes() / 60;
-  if (currentHour < HOUR_START || currentHour > HOUR_END) return null;
-  const top = (currentHour - HOUR_START) * PX_PER_HOUR;
-  return (
-    <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
-      <div className="flex items-center -mt-1.5">
-        <div className="w-3 h-3 rounded-full bg-red-400 flex-shrink-0 shadow-sm" />
-        <div className="flex-1 h-px bg-red-400/70" />
-      </div>
-    </div>
-  );
-}
-
-// ── Checkout Overlay ──────────────────────────────────────────────────────────
-
-type CheckoutStep = "summary" | "retail" | "tip" | "payment" | "done";
-
-function CheckoutOverlay({
-  appt,
-  addOns,
-  onClose,
-}: {
-  appt: Appointment;
-  addOns: AddOnService[];
-  onClose: () => void;
-}) {
-  const [step, setStep] = useState<CheckoutStep>("summary");
-  const [retail, setRetail] = useState<RetailProduct[]>([
-    { id: "r1", name: "Olaplex No.3 Hair Perfector", price: 30, selected: false },
-    { id: "r2", name: "Redken All Soft Shampoo", price: 24, selected: false },
-    { id: "r3", name: "Moroccanoil Treatment", price: 46, selected: false },
-    { id: "r4", name: "Kevin.Murphy Smooth.Again", price: 38, selected: false },
-  ]);
-  const [tipPct, setTipPct] = useState<number | null>(null);
-  const [processing, setProcessing] = useState(false);
-
-  const serviceTotal = appt.price + addOns.reduce((s, a) => s + a.price, 0);
-  const retailTotal = retail.filter(p => p.selected).reduce((s, p) => s + p.price, 0);
-  const tipAmount = tipPct ? serviceTotal * (tipPct / 100) : 0;
-  const total = serviceTotal + retailTotal + tipAmount;
-
-  const toggleRetail = (id: string) =>
-    setRetail(prev => prev.map(p => p.id === id ? { ...p, selected: !p.selected } : p));
-
-  const handlePay = () => {
-    setProcessing(true);
-    setTimeout(() => { setProcessing(false); setStep("done"); }, 2200);
-  };
-
-  const steps: CheckoutStep[] = ["summary", "retail", "tip", "payment"];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-        <div className="px-6 pt-6 pb-4 border-b border-stone-100 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">Express Checkout</p>
-            <h3 className="text-lg font-bold text-stone-800 leading-tight mt-0.5">{appt.clientName}</h3>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-200 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {step !== "done" && (
-          <div className="px-6 py-3 flex items-center gap-2">
-            {steps.map((s, i) => (
-              <div key={s} className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${step === s ? "bg-stone-800 text-white" : i < steps.indexOf(step) ? "bg-emerald-500 text-white" : "bg-stone-100 text-stone-400"}`}>
-                  {i < steps.indexOf(step) ? <Check className="w-3 h-3" /> : i + 1}
-                </div>
-                {i < steps.length - 1 && <div className={`h-px w-4 transition-all ${i < steps.indexOf(step) ? "bg-emerald-400" : "bg-stone-200"}`} />}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="px-6 pb-6">
-          {step === "summary" && (
-            <div className="space-y-3">
-              <div className="bg-stone-50 rounded-2xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-stone-600">{appt.service}</span>
-                  <span className="text-sm font-semibold text-stone-800">${appt.price.toFixed(2)}</span>
-                </div>
-                {addOns.map(a => (
-                  <div key={a.id} className="flex justify-between items-center">
-                    <span className="text-sm text-stone-500 flex items-center gap-1"><Plus className="w-3 h-3 text-emerald-500" />{a.name}</span>
-                    <span className="text-sm font-semibold text-stone-800">${a.price.toFixed(2)}</span>
-                  </div>
-                ))}
-                {addOns.length > 0 && (
-                  <div className="flex justify-between items-center pt-1 border-t border-stone-200">
-                    <span className="text-sm font-semibold text-stone-700">Services Total</span>
-                    <span className="text-sm font-bold text-stone-800">${serviceTotal.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-              <button onClick={() => setStep("retail")} className="w-full bg-stone-800 text-white py-3.5 rounded-2xl font-semibold text-sm hover:bg-stone-700 transition-colors">
-                Continue to Retail Add-ons
-              </button>
-            </div>
-          )}
-
-          {step === "retail" && (
-            <div className="space-y-3">
-              <p className="text-xs text-stone-400 font-medium uppercase tracking-wide">Recommend a product</p>
-              <div className="space-y-2 max-h-52 overflow-y-auto">
-                {retail.map(p => (
-                  <button key={p.id} onClick={() => toggleRetail(p.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${p.selected ? "border-stone-800 bg-stone-50" : "border-stone-200 bg-white hover:border-stone-300"}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${p.selected ? "border-stone-800 bg-stone-800" : "border-stone-300"}`}>
-                        {p.selected && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className="text-sm font-medium text-stone-700">{p.name}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-stone-800">+${p.price}</span>
-                  </button>
-                ))}
-              </div>
-              {retailTotal > 0 && <p className="text-xs text-emerald-600 font-semibold text-center">+${retailTotal.toFixed(2)} retail added</p>}
-              <button onClick={() => setStep("tip")} className="w-full bg-stone-800 text-white py-3.5 rounded-2xl font-semibold text-sm hover:bg-stone-700 transition-colors">
-                Continue to Tip
-              </button>
-            </div>
-          )}
-
-          {step === "tip" && (
-            <div className="space-y-4">
-              <p className="text-xs text-stone-400 font-medium uppercase tracking-wide">Select tip</p>
-              <div className="grid grid-cols-3 gap-2">
-                {[18, 20, 25].map(pct => (
-                  <button key={pct} onClick={() => setTipPct(tipPct === pct ? null : pct)} className={`py-4 rounded-xl border-2 transition-all ${tipPct === pct ? "border-stone-800 bg-stone-800 text-white" : "border-stone-200 text-stone-700 hover:border-stone-400"}`}>
-                    <p className="text-xl font-bold">{pct}%</p>
-                    <p className="text-xs opacity-70 mt-0.5">${(serviceTotal * pct / 100).toFixed(2)}</p>
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => setTipPct(null)} className="w-full text-xs text-stone-400 underline underline-offset-2 hover:text-stone-600 transition-colors">No tip</button>
-              <div className="bg-stone-50 rounded-2xl p-4 space-y-1.5">
-                <div className="flex justify-between text-sm text-stone-600"><span>Services</span><span>${serviceTotal.toFixed(2)}</span></div>
-                {retailTotal > 0 && <div className="flex justify-between text-sm text-stone-600"><span>Retail</span><span>${retailTotal.toFixed(2)}</span></div>}
-                {tipAmount > 0 && <div className="flex justify-between text-sm text-stone-600"><span>Tip ({tipPct}%)</span><span>${tipAmount.toFixed(2)}</span></div>}
-                <div className="flex justify-between text-base font-bold text-stone-800 pt-1.5 border-t border-stone-200"><span>Total</span><span>${total.toFixed(2)}</span></div>
-              </div>
-              <button onClick={() => setStep("payment")} className="w-full bg-stone-800 text-white py-3.5 rounded-2xl font-semibold text-sm hover:bg-stone-700 transition-colors">
-                Proceed to Payment
-              </button>
-            </div>
-          )}
-
-          {step === "payment" && (
-            <div className="space-y-4">
-              <div className="text-center space-y-1">
-                <p className="text-4xl font-bold text-stone-800">${total.toFixed(2)}</p>
-                <p className="text-xs text-stone-400">Total due</p>
-              </div>
-              <button onClick={handlePay} disabled={processing} className="w-full relative overflow-hidden bg-stone-800 text-white py-4 rounded-2xl font-semibold text-sm hover:bg-stone-700 transition-all disabled:opacity-80 flex items-center justify-center gap-2">
-                {processing ? (
-                  <><div className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />Processing...</>
-                ) : (
-                  <><Smartphone className="w-4 h-4" />Tap to Pay</>
-                )}
-              </button>
-              <p className="text-[10px] text-stone-400 text-center">Simulated terminal · no real charge</p>
-            </div>
-          )}
-
-          {step === "done" && (
-            <div className="py-4 text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center mx-auto">
-                <Check className="w-8 h-8 text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-lg font-bold text-stone-800">Payment Complete</p>
-                <p className="text-sm text-stone-400 mt-1">${total.toFixed(2)} charged · receipt sent</p>
-              </div>
-              <button onClick={onClose} className="w-full bg-stone-100 text-stone-700 py-3.5 rounded-2xl font-semibold text-sm hover:bg-stone-200 transition-colors">Close</button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Add Service Modal ─────────────────────────────────────────────────────────
-
-function AddServiceModal({ onAdd, onClose }: { onAdd: (service: AddOnService) => void; onClose: () => void }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const chosen = ADD_ON_SERVICES.find(s => s.id === selected);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-xs bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-        <div className="px-5 pt-5 pb-3 border-b border-stone-100 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-stone-800">Add Service / Retail</h3>
-          <button onClick={onClose} className="w-7 h-7 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-200 transition-colors">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-        <div className="p-4 space-y-1.5">
-          {ADD_ON_SERVICES.map(s => (
-            <button
-              key={s.id}
-              onClick={() => setSelected(selected === s.id ? null : s.id)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left ${selected === s.id ? "border-stone-800 bg-stone-50" : "border-stone-200 hover:border-stone-300"}`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selected === s.id ? "border-stone-800 bg-stone-800" : "border-stone-300"}`}>
-                  {selected === s.id && <Check className="w-3 h-3 text-white" />}
-                </div>
-                <span className="text-sm font-medium text-stone-700">{s.name}</span>
-              </div>
-              <span className="text-sm font-semibold text-stone-800">+${s.price}</span>
-            </button>
-          ))}
-        </div>
-        <div className="px-4 pb-5">
-          <button
-            disabled={!chosen}
-            onClick={() => { if (chosen) { onAdd(chosen); onClose(); } }}
-            className="w-full bg-stone-800 text-white py-3 rounded-2xl font-semibold text-sm hover:bg-stone-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {chosen ? `Add ${chosen.name} · $${chosen.price}` : "Select a service"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Appointment Detail Drawer ─────────────────────────────────────────────────
-
-function AppointmentDrawer({
-  appt,
-  stylistName,
-  addOns,
-  onClose,
-  onCheckout,
-  onSaveNotes,
-  onAddService,
-  stylists,
+// ── Appointment detail drawer ─────────────────────────────────────────────────
+function ApptDrawer({
+  appt, stylistName, onClose, onStatusChange, onSaveNotes,
 }: {
   appt: Appointment;
   stylistName: string;
-  addOns: AddOnService[];
   onClose: () => void;
-  onCheckout: () => void;
-  onSaveNotes: (notes: string, preferences: string) => void;
-  onAddService: () => void;
-  stylists: Stylist[];
+  onStatusChange: (id: string, status: AppointmentStatus) => void;
+  onSaveNotes: (id: string, notes: string) => void;
 }) {
+  const sc = STATUS_CONFIG[appt.status];
   const [notes, setNotes] = useState(appt.notes ?? "");
-  const [prefs, setPrefs] = useState(appt.preferences ?? "");
-  const [notesEditing, setNotesEditing] = useState(false);
-  const [prefsEditing, setPrefsEditing] = useState(false);
-  const [savedNotes, setSavedNotes] = useState(false);
-  const [savedPrefs, setSavedPrefs] = useState(false);
-  const [gcalPopup, setGcalPopup] = useState(false);
-  const [gcalSyncing, setGcalSyncing] = useState<string | null>(null);
-  const [gcalSynced, setGcalSynced] = useState<string | null>(null);
-  const notesRef = useRef<HTMLTextAreaElement>(null);
-
-  const saveNotes = useCallback(() => {
-    onSaveNotes(notes, prefs);
-    setNotesEditing(false);
-    setSavedNotes(true);
-    setTimeout(() => setSavedNotes(false), 2000);
-  }, [notes, prefs, onSaveNotes]);
-
-  const savePrefs = useCallback(() => {
-    onSaveNotes(notes, prefs);
-    setPrefsEditing(false);
-    setSavedPrefs(true);
-    setTimeout(() => setSavedPrefs(false), 2000);
-  }, [notes, prefs, onSaveNotes]);
-
-  const handleGcalSync = (stylist: Stylist) => {
-    setGcalSyncing(stylist.id);
-    setTimeout(() => {
-      setGcalSyncing(null);
-      setGcalSynced(stylist.id);
-      setTimeout(() => { setGcalSynced(null); setGcalPopup(false); }, 2000);
-    }, 1400);
-  };
+  const [editingNotes, setEditingNotes] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300 max-h-[92vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Drag handle */}
-        <div className="w-10 h-1 bg-stone-200 rounded-full mx-auto mt-3 sm:hidden flex-shrink-0" />
-
-        {/* Header */}
-        <div className="px-6 pt-5 pb-3 flex items-start justify-between flex-shrink-0">
+    <div className="fixed inset-0 z-40 flex justify-end sm:items-stretch">
+      <div className="absolute inset-0 bg-black/25" onClick={onClose} />
+      <div className="relative w-full sm:max-w-xs bg-white border-l border-stone-100 shadow-2xl flex flex-col overflow-y-auto animate-slide-in-right">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 flex-shrink-0">
           <div>
-            <p className="text-xs text-stone-400 uppercase tracking-widest font-medium">{stylistName}</p>
-            <h3 className="text-xl font-bold text-stone-800 mt-0.5">{appt.clientName}</h3>
-            <p className="text-sm text-stone-500 mt-0.5">{appt.service}</p>
+            <p className="text-sm font-bold text-stone-800">{appt.clientName}</p>
+            <p className="text-xs text-stone-400">{stylistName}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-200 transition-colors mt-1">
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Scrollable body */}
-        <div className="px-6 pb-6 space-y-4 overflow-y-auto flex-1">
-          {/* Status + time + price */}
-          <div className="flex items-center gap-3">
-            <StatusPill status={appt.status} />
-            <span className="text-sm text-stone-500">{formatHour(appt.startHour)} – {formatHour(appt.startHour + appt.durationHours)}</span>
-            <span className="text-sm font-semibold text-stone-800 ml-auto">${appt.price.toFixed(2)}</span>
+        <div className="p-4 space-y-4 flex-1">
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+            {sc.label}
           </div>
 
-          {/* Add-ons already added to ticket */}
-          {addOns.length > 0 && (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-1">
-              <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Added to ticket</p>
-              {addOns.map(a => (
-                <div key={a.id} className="flex justify-between text-xs text-emerald-800">
-                  <span>+ {a.name}</span>
-                  <span className="font-semibold">${a.price}</span>
-                </div>
+          <div className="bg-stone-50 rounded-xl p-3 space-y-1.5">
+            <Row label="Service" val={appt.service} />
+            <Row label="Time" val={`${fmtHour(appt.startHour)} – ${fmtHour(appt.startHour + appt.durationHours)}`} />
+            <Row label="Price" val={`$${appt.price}`} />
+            {appt.phone && <Row label="Phone" val={appt.phone} />}
+          </div>
+
+          {/* Status change */}
+          <div>
+            <p className="text-xs font-semibold text-stone-500 mb-2">Update Status</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(Object.keys(STATUS_CONFIG) as AppointmentStatus[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => onStatusChange(appt.id, s)}
+                  className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${appt.status === s ? STATUS_CONFIG[s].bg + " " + STATUS_CONFIG[s].text + " ring-1 ring-offset-1 ring-current" : "border-stone-100 text-stone-500 hover:bg-stone-50"}`}
+                >
+                  {STATUS_CONFIG[s].label}
+                </button>
               ))}
             </div>
-          )}
-
-          {/* Formula Notes — inline editable */}
-          <div className="rounded-xl overflow-visible">
-            <div
-              className={`bg-amber-50 border rounded-xl p-3 transition-all duration-200 ${notesEditing ? "border-amber-400 shadow-sm shadow-amber-100" : "border-amber-200 hover:border-amber-300 cursor-text"}`}
-              onClick={() => { if (!notesEditing) { setNotesEditing(true); setTimeout(() => notesRef.current?.focus(), 50); } }}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
-                  <FlaskConical className="w-3 h-3" /> Formula Notes
-                </p>
-                <div className="flex items-center gap-1.5">
-                  {savedNotes && (
-                    <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold animate-in fade-in duration-200">
-                      <Check className="w-3 h-3" /> Saved
-                    </span>
-                  )}
-                  {notesEditing ? (
-                    <button
-                      onClick={e => { e.stopPropagation(); saveNotes(); }}
-                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-amber-200 text-amber-800 hover:bg-amber-300 transition-colors"
-                    >
-                      <Check className="w-3 h-3" /> Save
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-[10px] font-medium text-amber-500">
-                      <Pencil className="w-2.5 h-2.5" /> Click to edit
-                    </span>
-                  )}
-                </div>
-              </div>
-              {notesEditing ? (
-                <textarea
-                  ref={notesRef}
-                  autoFocus
-                  value={notes}
-                  onChange={e => { setNotes(e.target.value); }}
-                  onBlur={saveNotes}
-                  rows={3}
-                  className="w-full text-xs text-amber-800 leading-relaxed bg-white/70 border border-amber-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 transition-all"
-                  placeholder="Level, developer, processing time, formula details…"
-                  onClick={e => e.stopPropagation()}
-                />
-              ) : (
-                <p className="text-xs text-amber-800 leading-relaxed min-h-[2.5rem]">
-                  {notes || <span className="text-amber-400 italic">Tap to add formula notes…</span>}
-                </p>
-              )}
-            </div>
-
-            {/* Google Calendar sync button */}
-            <div className="relative mt-2">
-              <button
-                onClick={() => setGcalPopup(v => !v)}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-600 hover:bg-stone-50 hover:border-stone-300 transition-all group"
-              >
-                <Link2 className="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-600 transition-colors" />
-                Sync to Stylist's Google Calendar
-              </button>
-
-              {gcalPopup && (
-                <div className="absolute bottom-full mb-2 left-0 right-0 z-50 animate-in slide-in-from-bottom-2 duration-200">
-                  <div className="bg-white rounded-2xl border border-stone-200 shadow-xl overflow-hidden">
-                    <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-stone-800">Select Google Account</p>
-                        <p className="text-[10px] text-stone-400 mt-0.5">Stream this appointment to a stylist's calendar</p>
-                      </div>
-                      <button onClick={() => setGcalPopup(false)} className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 hover:bg-stone-200 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="p-2 space-y-1">
-                      {stylists.map(st => (
-                        <button
-                          key={st.id}
-                          onClick={() => handleGcalSync(st)}
-                          disabled={!!gcalSyncing}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-stone-50 transition-all group/item disabled:opacity-60"
-                        >
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: st.avatarColor }}>
-                            {st.initials}
-                          </div>
-                          <div className="text-left flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-stone-800">{st.name}</p>
-                            <p className="text-[10px] text-stone-400">{st.name.toLowerCase().replace(" ", ".")}@gmail.com</p>
-                          </div>
-                          <div className="flex-shrink-0">
-                            {gcalSyncing === st.id && (
-                              <div className="w-4 h-4 rounded-full border-2 border-stone-300 border-t-stone-600 animate-spin" />
-                            )}
-                            {gcalSynced === st.id && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 animate-in fade-in duration-200">
-                                <Check className="w-3 h-3" /> Synced!
-                              </span>
-                            )}
-                            {gcalSyncing !== st.id && gcalSynced !== st.id && (
-                              <span className="text-[10px] text-stone-300 group-hover/item:text-stone-500 transition-colors font-medium">Add</span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Client Preferences — inline editable */}
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+          {/* Notes */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-semibold text-rose-700 flex items-center gap-1">
-                <Star className="w-3 h-3" /> Client Preferences
-              </p>
-              <div className="flex items-center gap-1.5">
-                {savedPrefs && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 font-semibold animate-in fade-in duration-200">
-                    <Check className="w-3 h-3" /> Saved
-                  </span>
-                )}
-                <button
-                  onClick={() => prefsEditing ? savePrefs() : setPrefsEditing(true)}
-                  className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-colors ${prefsEditing ? "bg-rose-200 text-rose-800 hover:bg-rose-300" : "text-rose-600 hover:bg-rose-100"}`}
-                >
-                  {prefsEditing ? <><Check className="w-3 h-3" /> Save</> : <><Pencil className="w-3 h-3" /> Edit</>}
-                </button>
-              </div>
+              <p className="text-xs font-semibold text-amber-700">Formula Notes</p>
+              <button
+                onClick={() => editingNotes ? (onSaveNotes(appt.id, notes), setEditingNotes(false)) : setEditingNotes(true)}
+                className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors"
+              >
+                {editingNotes ? <><Check className="w-3 h-3" /> Save</> : <><Pencil className="w-3 h-3" /> Edit</>}
+              </button>
             </div>
-            {prefsEditing ? (
+            {editingNotes ? (
               <textarea
-                autoFocus
-                value={prefs}
-                onChange={e => setPrefs(e.target.value)}
-                onBlur={savePrefs}
-                rows={2}
-                className="w-full text-xs text-rose-800 leading-relaxed bg-white/70 border border-rose-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-rose-400 transition-all"
-                placeholder="e.g. Prefers oat milk lattes, loves talking about her kids…"
+                autoFocus value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="w-full text-xs text-amber-800 bg-white/70 border border-amber-200 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400"
               />
             ) : (
-              <p
-                className="text-xs text-rose-800 leading-relaxed cursor-text min-h-[2rem]"
-                onClick={() => setPrefsEditing(true)}
-              >
-                {prefs || <span className="text-rose-300 italic">Tap to add client preferences…</span>}
+              <p className="text-xs text-amber-800 leading-relaxed min-h-[2rem]" onClick={() => setEditingNotes(true)}>
+                {notes || <span className="text-amber-400 italic">Tap to add notes…</span>}
               </p>
             )}
           </div>
 
-          {/* Phone */}
-          {appt.phone && (
-            <div className="flex items-center gap-2 text-sm text-stone-500">
-              <User className="w-4 h-4 flex-shrink-0" />
-              <span>{appt.phone}</span>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              onClick={onAddService}
-              className="py-3 rounded-xl border border-stone-200 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Service
-            </button>
-            <button
-              onClick={() => { onClose(); onCheckout(); }}
-              className="py-3 rounded-xl bg-stone-800 text-white text-sm font-medium hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <CreditCard className="w-4 h-4" /> Checkout
-            </button>
-          </div>
+          <button className="w-full py-3 rounded-xl bg-stone-800 text-white text-sm font-semibold hover:bg-stone-700 transition-colors flex items-center justify-center gap-2">
+            <CreditCard className="w-4 h-4" /> Checkout
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+function Row({ label, val }: { label: string; val: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-stone-400">{label}</span>
+      <span className="text-xs font-semibold text-stone-700">{val}</span>
+    </div>
+  );
+}
 
+function fmtHour(h: number) {
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  const period = hh < 12 ? "AM" : "PM";
+  return `${hh % 12 || 12}:${String(mm).padStart(2, "0")} ${period}`;
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function CalendarBooking() {
   const navigate = useNavigate();
   const { data: settings } = useRestaurantSettings();
   const restaurantId = settings?.id ?? null;
+
   const [today] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedISO = toISO(selectedDate);
+
+  // Global stylist state — new staff added here immediately appear as calendar columns
   const [stylists, setStylists] = useState<Stylist[]>(INITIAL_STYLISTS);
+
   const [selectedAppt, setSelectedAppt] = useState<{ appt: Appointment; stylistId: string } | null>(null);
-  const [checkoutAppt, setCheckoutAppt] = useState<Appointment | null>(null);
-  const [checkoutAddOns, setCheckoutAddOns] = useState<AddOnService[]>([]);
-  const [drawerAddOns, setDrawerAddOns] = useState<AddOnService[]>([]);
-  const [showAddService, setShowAddService] = useState(false);
-  const [highlightBlock, setHighlightBlock] = useState<HighlightBlock | null>(null);
   const [showStaffPanel, setShowStaffPanel] = useState(false);
   const [staffPanelFocusName, setStaffPanelFocusName] = useState<string | null>(null);
-
-  // Seed data derived from the already-rendered calendar stylists
-  const seedStylists: SeedStylist[] = stylists.map((s) => ({
-    id: s.id,
-    name: s.name,
-    initials: s.initials,
-    avatarColor: s.avatarColor,
-  }));
   const scrollRef = useRef<HTMLDivElement>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const weekDates = getWeekDates(selectedDate);
 
   useEffect(() => {
     if (scrollRef.current) {
       const now = new Date();
-      const currentHour = now.getHours() + now.getMinutes() / 60;
-      scrollRef.current.scrollTop = Math.max(0, (currentHour - HOUR_START - 1) * PX_PER_HOUR);
+      scrollRef.current.scrollTop = Math.max(0, (now.getHours() + now.getMinutes() / 60 - HOUR_START - 1) * PX_PER_HOUR);
     }
   }, []);
 
-  // Reset drawer add-ons when appointment changes
-  useEffect(() => {
-    setDrawerAddOns([]);
-  }, [selectedAppt?.appt.id]);
+  // Filter appointments to selected date only
+  const filteredStylists = useMemo(() =>
+    stylists.map((s) => ({
+      ...s,
+      appointments: s.appointments.filter((a) => a.date === selectedISO),
+    })),
+    [stylists, selectedISO],
+  );
 
-  const handleSaveNotes = useCallback((apptId: string, notes: string, preferences: string) => {
-    setStylists(prev => prev.map(st => ({
-      ...st,
-      appointments: st.appointments.map(a => a.id === apptId ? { ...a, notes, preferences } : a),
-    })));
-    if (selectedAppt?.appt.id === apptId) {
-      setSelectedAppt(prev => prev ? { ...prev, appt: { ...prev.appt, notes, preferences } } : null);
-    }
-  }, [selectedAppt]);
-
-  const handleQuickMatch = useCallback((w: WaitlistClient) => {
-    if (!w.matchStylistId || w.matchStartHour === undefined || w.matchDurationHours === undefined) return;
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    setHighlightBlock({ stylistId: w.matchStylistId, startHour: w.matchStartHour, durationHours: w.matchDurationHours });
-    // Scroll the grid to that time slot
-    if (scrollRef.current) {
-      const targetScroll = Math.max(0, (w.matchStartHour - HOUR_START - 0.5) * PX_PER_HOUR);
-      scrollRef.current.scrollTo({ top: targetScroll, behavior: "smooth" });
-    }
-    highlightTimerRef.current = setTimeout(() => setHighlightBlock(null), 5000);
+  const handleStatusChange = useCallback((apptId: string, status: AppointmentStatus) => {
+    setStylists((prev) =>
+      prev.map((s) => ({
+        ...s,
+        appointments: s.appointments.map((a) => a.id === apptId ? { ...a, status } : a),
+      })),
+    );
+    setSelectedAppt((prev) =>
+      prev?.appt.id === apptId ? { ...prev, appt: { ...prev.appt, status } } : prev,
+    );
   }, []);
 
-  const currentApptFromState = selectedAppt
-    ? stylists.find(s => s.id === selectedAppt.stylistId)?.appointments.find(a => a.id === selectedAppt.appt.id) ?? selectedAppt.appt
-    : null;
+  const handleSaveNotes = useCallback((apptId: string, notes: string) => {
+    setStylists((prev) =>
+      prev.map((s) => ({
+        ...s,
+        appointments: s.appointments.map((a) => a.id === apptId ? { ...a, notes } : a),
+      })),
+    );
+  }, []);
 
-  // Computed day analytics
-  const allAppts = stylists.flatMap(s => s.appointments);
+  // Callback so StaffCheckInWidget can push a new stylist into the calendar grid
+  const handleStaffAdded = useCallback((name: string, avatarColor: string) => {
+    const initials = name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+    const id = `stylist-${Date.now()}`;
+    setStylists((prev) => [...prev, { id, name, initials, avatarColor, appointments: [] }]);
+  }, []);
+
+  // Seed data for widget — avoids spinner when DB lags
+  const seedStylists: SeedStylist[] = stylists.map((s) => ({
+    id: s.id, name: s.name, initials: s.initials, avatarColor: s.avatarColor,
+  }));
+
+  // Analytics for selected date
+  const allAppts = filteredStylists.flatMap((s) => s.appointments);
   const totalAppts = allAppts.length;
   const projectedRevenue = allAppts.reduce((sum, a) => sum + a.price, 0);
-  const completedCount = allAppts.filter(a => a.status === "completed").length;
-  const inChairCount = allAppts.filter(a => a.status === "in-chair" || a.status === "processing").length;
-  const arrivedCount = allAppts.filter(a => a.status === "arrived").length;
-  const activeStylists = stylists.filter(s => s.appointments.length > 0).length;
+  const completedCount = allAppts.filter((a) => a.status === "completed").length;
+  const inChairCount = allAppts.filter((a) => a.status === "in-chair" || a.status === "processing").length;
+
+  const currentAppt = selectedAppt
+    ? filteredStylists.find((s) => s.id === selectedAppt.stylistId)?.appointments.find((a) => a.id === selectedAppt.appt.id) ?? selectedAppt.appt
+    : null;
+
+  const openPanel = (name?: string) => {
+    setStaffPanelFocusName(name ?? null);
+    setShowStaffPanel(true);
+  };
+  const closePanel = () => {
+    setShowStaffPanel(false);
+    setStaffPanelFocusName(null);
+  };
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#faf9f7", fontFamily: "'Inter', sans-serif" }}>
 
-      {/* ── Top Navbar ── */}
+      {/* ── Navbar ── */}
       <header className="flex-shrink-0 bg-white border-b border-stone-100 px-4 lg:px-6 h-14 flex items-center gap-3 z-30">
         <button onClick={() => navigate("/dashboard")} className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors">
           <ArrowLeft className="w-4 h-4" />
@@ -922,16 +342,16 @@ export default function CalendarBooking() {
         <div className="flex items-center gap-2">
           <Scissors className="w-4 h-4 text-stone-400" />
           <span className="text-sm font-semibold text-stone-800">Loomis Salon</span>
-          <span className="text-stone-300 text-sm">/</span>
+          <span className="text-stone-300">/</span>
           <span className="text-sm text-stone-500">Calendar</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors relative">
+          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-500 hover:bg-stone-100 relative">
             <Bell className="w-4 h-4" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-400 border border-white" />
           </button>
           <button
-            onClick={() => setShowStaffPanel(true)}
+            onClick={() => openPanel()}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-700 text-xs font-semibold hover:bg-stone-50 transition-colors"
           >
             <UserCheck className="w-3.5 h-3.5" /> Staff
@@ -942,55 +362,56 @@ export default function CalendarBooking() {
         </div>
       </header>
 
-      {/* ── Staff Management slide-over panel ── */}
+      {/* ── Staff panel — full-screen on mobile, right drawer on sm+ ── */}
       {showStaffPanel && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-            onClick={() => { setShowStaffPanel(false); setStaffPanelFocusName(null); }}
-          />
-          <div className="relative w-full max-w-sm bg-card border-l border-border shadow-2xl flex flex-col overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+        <div className="fixed inset-0 z-50 flex sm:justify-end">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={closePanel} />
+          {/* Mobile: slide up from bottom; sm+: slide in from right */}
+          <div className="relative w-full sm:max-w-sm bg-[hsl(0,0%,100%)] sm:border-l border-t sm:border-t-0 border-[hsl(30,12%,88%)] shadow-2xl flex flex-col overflow-hidden mt-auto sm:mt-0 rounded-t-3xl sm:rounded-none animate-slide-in-bottom sm:animate-slide-in-right">
+            {/* Drag handle — mobile only */}
+            <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full bg-stone-200" />
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[hsl(30,12%,88%)] flex-shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 text-gold" />
+                <div className="w-8 h-8 rounded-lg bg-[hsl(38,65%,55%)]/15 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-[hsl(38,65%,55%)]" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Team Management</p>
-                  <p className="text-[11px] text-muted-foreground">Schedules & availability</p>
+                  <p className="text-sm font-semibold text-stone-800">Team Management</p>
+                  <p className="text-[11px] text-stone-400">Schedules & availability</p>
                 </div>
               </div>
-              <button
-                onClick={() => { setShowStaffPanel(false); setStaffPanelFocusName(null); }}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              >
+              <button onClick={closePanel} className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 px-5 py-5">
+
+            <div className="flex-1 overflow-y-auto px-5 py-5">
               <StaffCheckInWidget
                 restaurantId={restaurantId ?? ""}
                 initialExpandName={staffPanelFocusName}
                 seedStylists={seedStylists}
+                onStaffAdded={handleStaffAdded}
               />
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Live Analytics Bar ── */}
-      <div className="flex-shrink-0 bg-stone-900 border-b border-stone-800 px-4 lg:px-6 py-2.5 flex items-center gap-2 overflow-x-auto">
+      {/* ── Analytics bar ── */}
+      <div className="flex-shrink-0 bg-stone-900 border-b border-stone-800 px-4 py-2.5 flex items-center gap-2 overflow-x-auto">
         <div className="flex items-center gap-1.5 mr-3 flex-shrink-0">
           <BarChart3 className="w-3.5 h-3.5 text-stone-400" />
           <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Today</span>
         </div>
         {[
-          { label: "Appointments", val: totalAppts, icon: CalendarDays, color: "text-sky-400", accent: "bg-sky-400/10" },
-          { label: "Projected", val: `$${projectedRevenue.toLocaleString()}`, icon: DollarSign, color: "text-emerald-400", accent: "bg-emerald-400/10" },
-          { label: "Completed", val: completedCount, icon: Check, color: "text-stone-300", accent: "bg-stone-600/50" },
+          { label: "Appts", val: totalAppts, icon: CalendarDays, color: "text-sky-400", accent: "bg-sky-400/10" },
+          { label: "Revenue", val: `$${projectedRevenue.toLocaleString()}`, icon: DollarSign, color: "text-emerald-400", accent: "bg-emerald-400/10" },
+          { label: "Done", val: completedCount, icon: Check, color: "text-stone-300", accent: "bg-stone-600/50" },
           { label: "In Chair", val: inChairCount, icon: Zap, color: "text-amber-400", accent: "bg-amber-400/10" },
-          { label: "Arrived", val: arrivedCount, icon: Users, color: "text-rose-400", accent: "bg-rose-400/10" },
-          { label: "Stylists On", val: activeStylists, icon: Scissors, color: "text-teal-400", accent: "bg-teal-400/10" },
+          { label: "Stylists", val: filteredStylists.filter((s) => s.appointments.length > 0).length, icon: Users, color: "text-teal-400", accent: "bg-teal-400/10" },
         ].map(({ label, val, icon: Icon, color, accent }) => (
           <div key={label} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${accent} flex-shrink-0`}>
             <Icon className={`w-3 h-3 ${color} flex-shrink-0`} />
@@ -1002,195 +423,117 @@ export default function CalendarBooking() {
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Left Sidebar ── */}
+        {/* ── Left sidebar (xl+) ── */}
         <aside className="hidden xl:flex flex-col w-72 flex-shrink-0 border-r border-stone-100 bg-white overflow-y-auto">
-
-          {/* Mini calendar */}
           <div className="p-5 border-b border-stone-100">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-stone-800">{MONTH_LABELS[selectedDate.getMonth()]} {selectedDate.getFullYear()}</h3>
-              <div className="flex gap-1">
-                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 7); setSelectedDate(d); }} className="w-6 h-6 rounded-md flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors">
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 7); setSelectedDate(d); }} className="w-6 h-6 rounded-md flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors">
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {["S","M","T","W","T","F","S"].map((d, i) => (
+                <span key={i} className="text-center text-[10px] font-bold text-stone-300">{d}</span>
+              ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {DAY_LABELS.map(d => (
-                <div key={d} className="text-[10px] font-medium text-stone-400 text-center py-1">{d}</div>
-              ))}
-              {weekDates.map((date, i) => {
-                const isToday = date.toDateString() === today.toDateString();
-                const isSel = date.toDateString() === selectedDate.toDateString();
+              {Array.from({ length: 35 }, (_, i) => {
+                const d = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                d.setDate(1 - d.getDay() + i);
+                const isThisMonth = d.getMonth() === selectedDate.getMonth();
+                const isSel = toISO(d) === selectedISO;
+                const isToday = toISO(d) === toISO(today);
                 return (
-                  <button key={i} onClick={() => setSelectedDate(date)} className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium transition-all ${isSel ? "bg-stone-800 text-white" : isToday ? "bg-amber-50 text-amber-700 border border-amber-200" : "text-stone-600 hover:bg-stone-100"}`}>
-                    {date.getDate()}
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDate(new Date(d))}
+                    className={`w-full aspect-square rounded-lg text-[11px] font-medium transition-all ${
+                      isSel ? "bg-stone-800 text-white" :
+                      isToday ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                      isThisMonth ? "text-stone-600 hover:bg-stone-100" : "text-stone-300"
+                    }`}
+                  >
+                    {d.getDate()}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Daily snapshot */}
-          <div className="p-5 border-b border-stone-100">
-            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-3">Today's Snapshot</p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: "Appointments", val: "12", icon: CalendarDays, color: "text-sky-600", bg: "bg-sky-50" },
-                { label: "Projected", val: "$1,840", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-                { label: "Completed", val: "4", icon: Check, color: "text-stone-600", bg: "bg-stone-100" },
-                { label: "In Chair", val: "2", icon: Zap, color: "text-amber-600", bg: "bg-amber-50" },
-              ].map(({ label, val, icon: Icon, color, bg }) => (
-                <div key={label} className="rounded-xl bg-stone-50 p-3">
-                  <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center mb-2`}>
-                    <Icon className={`w-3.5 h-3.5 ${color}`} />
-                  </div>
-                  <p className="text-base font-bold text-stone-800">{val}</p>
-                  <p className="text-[10px] text-stone-400 mt-0.5">{label}</p>
+          {/* Staff on duty quick list */}
+          <div className="p-4">
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">On Floor</p>
+            {stylists.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 py-2">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0" style={{ backgroundColor: s.avatarColor }}>
+                  {s.initials}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Waitlist */}
-          <div className="p-5 border-b border-stone-100">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest">Waitlist</p>
-              <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">{WAITLIST.length}</span>
-            </div>
-            <div className="space-y-2">
-              {WAITLIST.map((w, i) => {
-                const isActive = highlightBlock?.stylistId === w.matchStylistId;
-                return (
-                  <div key={i} className={`border rounded-xl p-3 transition-all duration-300 ${isActive ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-100"}`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-stone-800 truncate">{w.name}</p>
-                        <p className="text-[10px] text-stone-500 truncate mt-0.5">{w.service}</p>
-                        {w.preferredStylist && (
-                          <p className={`text-[10px] mt-0.5 truncate ${isActive ? "text-emerald-600" : "text-amber-600"}`}>Prefers {w.preferredStylist}</p>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-stone-400 ml-2 flex-shrink-0">{w.waitingSince}</span>
-                    </div>
-                    <button
-                      onClick={() => w.matchStylistId ? handleQuickMatch(w) : undefined}
-                      className={`mt-2 w-full py-1.5 rounded-lg text-[10px] font-semibold transition-colors flex items-center justify-center gap-1 ${isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-stone-800 text-white hover:bg-stone-700"}`}
-                    >
-                      <Zap className="w-3 h-3" />
-                      {isActive ? "Match Found! — Kelly 11:45am" : "Quick Match"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Inventory alerts */}
-          <div className="p-5 border-b border-stone-100">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest">Inventory Alerts</p>
-              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-            </div>
-            <div className="space-y-2">
-              {INVENTORY_ALERTS.map((a, i) => (
-                <div key={i} className={`rounded-xl p-3 flex items-start gap-2 ${a.current === 0 ? "bg-red-50 border border-red-100" : "bg-orange-50 border border-orange-100"}`}>
-                  <Package className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${a.current === 0 ? "text-red-400" : "text-orange-400"}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-[11px] font-semibold truncate ${a.current === 0 ? "text-red-700" : "text-orange-700"}`}>{a.product}</p>
-                    <p className={`text-[10px] mt-0.5 ${a.current === 0 ? "text-red-500" : "text-orange-500"}`}>
-                      {a.current === 0 ? "Out of stock" : `${a.current} ${a.unit}${a.current !== 1 ? "s" : ""} left`}
-                    </p>
-                  </div>
-                  <button className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${a.current === 0 ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"}`}>Order</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Next client highlight */}
-          {(() => {
-            const now = new Date();
-            const currentHour = now.getHours() + now.getMinutes() / 60;
-            let nextAppt: Appointment | null = null;
-            let nextStylist: Stylist | null = null;
-            for (const st of stylists) {
-              for (const ap of st.appointments) {
-                if (ap.startHour > currentHour && (!nextAppt || ap.startHour < nextAppt.startHour)) {
-                  nextAppt = ap; nextStylist = st;
-                }
-              }
-            }
-            if (!nextAppt || !nextStylist) return null;
-            return (
-              <div className="p-5">
-                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-3">Next Client Up</p>
-                <div className="bg-stone-800 rounded-2xl p-4 text-white">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold" style={{ background: nextStylist.avatarColor + "33", color: nextStylist.avatarColor }}>
-                      {nextAppt.clientName.split(" ").map(n => n[0]).join("")}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold leading-tight">{nextAppt.clientName}</p>
-                      <p className="text-[10px] text-stone-400 mt-0.5">{nextAppt.service}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-stone-400 text-[10px]"><Clock className="w-3 h-3" />{formatHour(nextAppt.startHour)}</div>
-                    <div className="text-[10px] text-stone-400">with {nextStylist.name.split(" ")[0]}</div>
-                  </div>
-                  {nextAppt.notes && (
-                    <div className="mt-3 pt-3 border-t border-stone-700">
-                      <p className="text-[10px] text-stone-400 font-medium mb-1">Formula notes</p>
-                      <p className="text-[10px] text-stone-300 leading-relaxed line-clamp-3">{nextAppt.notes}</p>
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs font-medium text-stone-700 flex-1 truncate">{s.name}</p>
+                <button onClick={() => openPanel(s.name)} className="text-[10px] text-stone-300 hover:text-stone-600 transition-colors">↔</button>
               </div>
-            );
-          })()}
+            ))}
+            <button onClick={() => openPanel()} className="mt-3 w-full text-xs text-stone-400 hover:text-[hsl(38,65%,55%)] transition-colors flex items-center gap-1.5 py-2">
+              <UserCheck className="w-3.5 h-3.5" /> Manage team
+            </button>
+          </div>
         </aside>
 
-        {/* ── Main Calendar ── */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        {/* ── Main calendar area ── */}
+        <main className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
-          {/* Toolbar */}
+          {/* Date navigator */}
           <div className="flex-shrink-0 bg-white border-b border-stone-100 px-4 py-3 flex items-center gap-3">
             <div className="flex items-center gap-1">
-              <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors">
+              <button
+                onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button onClick={() => setSelectedDate(new Date())} className="px-3 py-1 rounded-lg text-xs font-semibold text-stone-700 hover:bg-stone-100 transition-colors">
-                {selectedDate.toDateString() === today.toDateString() ? "Today" : selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              <button
+                onClick={() => setSelectedDate(new Date())}
+                className="px-3 py-1 rounded-lg text-xs font-semibold text-stone-700 hover:bg-stone-100 transition-colors"
+              >
+                {toISO(selectedDate) === toISO(today) ? "Today" : selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
               </button>
-              <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors">
+              <button
+                onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors"
+              >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Week day pills — clicking updates selectedDate and filters grid */}
             <div className="hidden md:flex items-center gap-1 overflow-x-auto flex-1 px-2">
               {weekDates.map((date, i) => {
-                const isToday = date.toDateString() === today.toDateString();
-                const isSel = date.toDateString() === selectedDate.toDateString();
+                const isSel = toISO(date) === selectedISO;
+                const isToday = toISO(date) === toISO(today);
                 return (
-                  <button key={i} onClick={() => setSelectedDate(date)} className={`flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl transition-all ${isSel ? "bg-stone-800 text-white" : isToday ? "bg-amber-50 text-amber-700 border border-amber-200" : "text-stone-500 hover:bg-stone-100"}`}>
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDate(new Date(date))}
+                    className={`flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl transition-all ${
+                      isSel ? "bg-stone-800 text-white" :
+                      isToday ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                      "text-stone-500 hover:bg-stone-100"
+                    }`}
+                  >
                     <span className="text-[10px] font-medium">{DAY_LABELS[date.getDay()]}</span>
                     <span className="text-sm font-bold">{date.getDate()}</span>
                   </button>
                 );
               })}
             </div>
+
             <div className="ml-auto flex items-center gap-2">
-              <button className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:bg-stone-100 transition-colors">
-                <Search className="w-3.5 h-3.5" />
-              </button>
               <button className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-medium text-stone-600 hover:bg-stone-50 transition-colors">
                 <Filter className="w-3 h-3" /> Filter
               </button>
               <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-medium text-stone-600 hover:bg-stone-50 transition-colors">
                 Day <ChevronDown className="w-3 h-3" />
+              </button>
+              {/* Mobile staff button */}
+              <button onClick={() => openPanel()} className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+                <UserCheck className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1198,20 +541,24 @@ export default function CalendarBooking() {
           {/* Stylist column headers */}
           <div className="flex-shrink-0 bg-white border-b border-stone-100 flex">
             <div className="flex-shrink-0 w-14" />
-            {stylists.map(stylist => (
-              <div key={stylist.id} className={`flex-1 min-w-0 px-3 py-3 border-l border-stone-100 first:border-l-0 transition-all duration-300 ${highlightBlock?.stylistId === stylist.id ? "bg-emerald-50/60" : ""}`}>
+            {filteredStylists.map((stylist) => (
+              <div key={stylist.id} className="flex-1 min-w-0 px-3 py-3 border-l border-stone-100 first:border-l-0">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 transition-all duration-300 ${highlightBlock?.stylistId === stylist.id ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`} style={{ background: stylist.avatarColor }}>
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                    style={{ background: stylist.avatarColor }}
+                  >
                     {stylist.initials}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-stone-800 truncate">{stylist.name.split(" ")[0]}</p>
-                    <p className="text-[10px] text-stone-400 truncate hidden sm:block">{stylist.appointments.length} appts</p>
+                    <p className="text-[10px] text-stone-400 hidden sm:block">{stylist.appointments.length} appts</p>
                   </div>
+                  {/* Double-arrow: opens that stylist's personal sheet */}
                   <button
-                    onClick={() => { setStaffPanelFocusName(stylist.name); setShowStaffPanel(true); }}
-                    className="ml-auto w-5 h-5 rounded-md flex items-center justify-center text-stone-300 hover:text-stone-600 hover:bg-stone-100 transition-colors flex-shrink-0"
+                    onClick={() => openPanel(stylist.name)}
                     title={`Manage ${stylist.name.split(" ")[0]}'s schedule`}
+                    className="ml-auto w-5 h-5 rounded-md flex items-center justify-center text-stone-300 hover:text-stone-600 hover:bg-stone-100 transition-colors flex-shrink-0"
                   >
                     <MoreHorizontal className="w-3.5 h-3.5" />
                   </button>
@@ -1220,28 +567,26 @@ export default function CalendarBooking() {
             ))}
           </div>
 
-          {/* Scrollable grid */}
+          {/* Scrollable appointment grid */}
           <div ref={scrollRef} className="flex-1 overflow-auto">
             <div className="flex" style={{ minHeight: TOTAL_HOURS * PX_PER_HOUR }}>
               <TimeGutter />
-              {stylists.map(stylist => (
-                <div
-                  key={stylist.id}
-                  className={`flex-1 min-w-0 relative border-l border-stone-100 first:border-l-0 transition-all duration-300 ${highlightBlock?.stylistId === stylist.id ? "bg-emerald-50/20" : ""}`}
-                  style={{ height: TOTAL_HOURS * PX_PER_HOUR }}
-                >
-                  <GridLines />
-                  <NowIndicator />
-                  {/* Quick-match highlight slot */}
-                  {highlightBlock?.stylistId === stylist.id && (
-                    <HighlightSlot block={highlightBlock} />
-                  )}
-                  {stylist.appointments.map(appt => (
-                    <AppointmentCard
+              {filteredStylists.map((stylist) => (
+                <div key={stylist.id} className="flex-1 min-w-0 relative border-l border-stone-50 first:border-l-0">
+                  {/* Hour lines */}
+                  {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                    <div key={i} className="absolute left-0 right-0 border-t border-stone-50" style={{ top: i * PX_PER_HOUR }} />
+                  ))}
+                  {/* Half-hour lines */}
+                  {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                    <div key={i} className="absolute left-0 right-0 border-t border-stone-50/50 border-dashed" style={{ top: i * PX_PER_HOUR + PX_PER_HOUR / 2 }} />
+                  ))}
+                  {/* Appointments */}
+                  {stylist.appointments.map((appt) => (
+                    <ApptBlock
                       key={appt.id}
                       appt={appt}
-                      stylistColor={stylist.avatarColor}
-                      highlighted={selectedAppt?.appt.id === appt.id}
+                      highlighted={false}
                       onClick={() => setSelectedAppt({ appt, stylistId: stylist.id })}
                     />
                   ))}
@@ -1249,82 +594,27 @@ export default function CalendarBooking() {
               ))}
             </div>
           </div>
-        </main>
 
-        {/* ── Right sidebar (lg only) ── */}
-        <aside className="hidden lg:flex xl:hidden flex-col w-64 flex-shrink-0 border-l border-stone-100 bg-white overflow-y-auto">
-          <div className="p-4 border-b border-stone-100">
-            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-3">Waitlist</p>
-            <div className="space-y-2">
-              {WAITLIST.map((w, i) => {
-                const isActive = highlightBlock?.stylistId === w.matchStylistId;
-                return (
-                  <div key={i} className={`rounded-xl p-3 transition-all ${isActive ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50"}`}>
-                    <p className="text-xs font-semibold text-stone-800">{w.name}</p>
-                    <p className="text-[10px] text-stone-500 mt-0.5">{w.service}</p>
-                    <button
-                      onClick={() => w.matchStylistId ? handleQuickMatch(w) : undefined}
-                      className={`mt-2 w-full py-1.5 rounded-lg text-[10px] font-semibold transition-colors flex items-center justify-center gap-1 ${isActive ? "bg-emerald-600 text-white" : "bg-stone-800 text-white hover:bg-stone-700"}`}
-                    >
-                      <Zap className="w-3 h-3" /> {isActive ? "Match Found!" : "Quick Match"}
-                    </button>
-                  </div>
-                );
-              })}
+          {/* Empty state for selected date */}
+          {allAppts.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ top: "30%" }}>
+              <div className="text-center">
+                <CalendarDays className="w-10 h-10 text-stone-200 mx-auto mb-2" />
+                <p className="text-sm text-stone-300 font-medium">No appointments on {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
+              </div>
             </div>
-          </div>
-          <div className="p-4">
-            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <AlertTriangle className="w-3 h-3 text-red-400" /> Alerts
-            </p>
-            <div className="space-y-2">
-              {INVENTORY_ALERTS.map((a, i) => (
-                <div key={i} className={`rounded-xl p-3 ${a.current === 0 ? "bg-red-50" : "bg-orange-50"}`}>
-                  <p className={`text-[11px] font-semibold truncate ${a.current === 0 ? "text-red-700" : "text-orange-700"}`}>{a.product}</p>
-                  <p className={`text-[10px] mt-0.5 ${a.current === 0 ? "text-red-500" : "text-orange-500"}`}>{a.current === 0 ? "Out of stock" : `${a.current} left`}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
+          )}
+        </main>
       </div>
 
-      {/* Mobile FAB */}
-      <button className="xl:hidden fixed bottom-6 right-6 z-30 w-12 h-12 rounded-full bg-stone-800 text-white shadow-xl flex items-center justify-center hover:bg-stone-700 transition-colors">
-        <Plus className="w-5 h-5" />
-      </button>
-
-      {/* Appointment detail drawer */}
-      {selectedAppt && currentApptFromState && (
-        <AppointmentDrawer
-          appt={currentApptFromState}
-          stylistName={stylists.find(s => s.id === selectedAppt.stylistId)?.name ?? ""}
-          addOns={drawerAddOns}
+      {/* ── Appointment detail drawer ── */}
+      {selectedAppt && currentAppt && (
+        <ApptDrawer
+          appt={currentAppt}
+          stylistName={stylists.find((s) => s.id === selectedAppt.stylistId)?.name ?? ""}
           onClose={() => setSelectedAppt(null)}
-          onCheckout={() => {
-            setCheckoutAddOns(drawerAddOns);
-            setCheckoutAppt(currentApptFromState);
-          }}
-          onSaveNotes={(notes, preferences) => handleSaveNotes(selectedAppt.appt.id, notes, preferences)}
-          onAddService={() => setShowAddService(true)}
-          stylists={stylists}
-        />
-      )}
-
-      {/* Add service modal */}
-      {showAddService && (
-        <AddServiceModal
-          onAdd={service => setDrawerAddOns(prev => [...prev, service])}
-          onClose={() => setShowAddService(false)}
-        />
-      )}
-
-      {/* Checkout overlay */}
-      {checkoutAppt && (
-        <CheckoutOverlay
-          appt={checkoutAppt}
-          addOns={checkoutAddOns}
-          onClose={() => { setCheckoutAppt(null); setCheckoutAddOns([]); setDrawerAddOns([]); }}
+          onStatusChange={handleStatusChange}
+          onSaveNotes={handleSaveNotes}
         />
       )}
     </div>

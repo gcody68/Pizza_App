@@ -1,139 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 95%;
-
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 95%;
-
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 95%;
-
-    --primary: 43 72% 55%;
-    --primary-foreground: 0 0% 7%;
-
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 85%;
-
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 55%;
-
-    --accent: 43 72% 55%;
-    --accent-foreground: 0 0% 7%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 95%;
-
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 43 72% 55%;
-
-    --radius: 0.75rem;
-
-    --gold: 43 72% 55%;
-    --gold-light: 43 72% 70%;
-    --gold-dark: 43 72% 40%;
-
-    --sidebar-background: 0 0% 8%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 43 72% 55%;
-    --sidebar-primary-foreground: 0 0% 7%;
-    --sidebar-accent: 0 0% 14%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 0 0% 18%;
-    --sidebar-ring: 43 72% 55%;
-  }
+@theme {
+  --color-gold: hsl(38, 65%, 55%);
+  --color-background: hsl(30, 20%, 97%);
+  --color-foreground: hsl(20, 14%, 12%);
+  --color-card: hsl(0, 0%, 100%);
+  --color-card-foreground: hsl(20, 14%, 12%);
+  --color-border: hsl(30, 12%, 88%);
+  --color-primary: hsl(20, 14%, 12%);
+  --color-primary-foreground: hsl(0, 0%, 100%);
+  --color-secondary: hsl(30, 15%, 94%);
+  --color-secondary-foreground: hsl(20, 14%, 20%);
+  --color-muted: hsl(30, 15%, 94%);
+  --color-muted-foreground: hsl(20, 10%, 50%);
+  --color-destructive: hsl(0, 72%, 51%);
+  --color-destructive-foreground: hsl(0, 0%, 100%);
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
+:root { font-family: "Inter", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(30,12%,80%); border-radius: 999px; }
+.gradient-gold { background: linear-gradient(135deg, hsl(38,65%,58%), hsl(32,70%,50%)); }
 
-  body {
-    @apply bg-background text-foreground font-sans antialiased;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', serif;
-  }
-}
-
-/* Landing page design system — warm cream editorial palette */
-:root {
-  --cream: 38 30% 96%;
-  --cream-mid: 38 20% 90%;
-  --cream-deep: 38 15% 82%;
-  --charcoal: 210 12% 16%;
-  --charcoal-mid: 210 10% 28%;
-  --charcoal-light: 210 8% 44%;
-  --matte-black: 0 0% 8%;
-  --warm-white: 40 20% 98%;
-  --blush: 10 35% 88%;
-  --taupe: 30 15% 60%;
-}
-
-@layer utilities {
-  .text-gold {
-    color: hsl(var(--gold));
-  }
-  .bg-gold {
-    background-color: hsl(var(--gold));
-  }
-  .border-gold {
-    border-color: hsl(var(--gold));
-  }
-  .gradient-gold {
-    background: linear-gradient(135deg, hsl(var(--gold-dark)), hsl(var(--gold)), hsl(var(--gold-light)));
-  }
-  .text-gradient-gold {
-    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-light)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  /* Landing page utilities */
-  .font-serif { font-family: 'Playfair Display', Georgia, serif; }
-  .font-sans-light { font-family: 'Inter', sans-serif; font-weight: 300; }
-
-  .landing-cream { background-color: hsl(var(--cream)); }
-  .landing-charcoal { color: hsl(var(--charcoal)); }
-  .landing-charcoal-mid { color: hsl(var(--charcoal-mid)); }
-  .text-taupe { color: hsl(var(--taupe)); }
-
-  .highlight-pill {
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .highlight-pill:hover {
-    transform: translateY(-2px);
-  }
-  .highlight-pill.active {
-    border-color: hsl(var(--charcoal));
-    background: hsl(var(--charcoal));
-    color: hsl(var(--cream));
-  }
-
-  .grid-card {
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s ease;
-  }
-  .grid-card:hover {
-    transform: scale(1.02);
-    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-up { animation: fadeUp 0.7s ease both; }
-  .animate-fade-up-delay-1 { animation: fadeUp 0.7s 0.15s ease both; }
-  .animate-fade-up-delay-2 { animation: fadeUp 0.7s 0.3s ease both; }
-  .animate-fade-up-delay-3 { animation: fadeUp 0.7s 0.45s ease both; }
-}
+@keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slide-in-bottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-slide-in-right { animation: slide-in-right 0.28s cubic-bezier(0.32,0.72,0,1); }
+.animate-slide-in-bottom { animation: slide-in-bottom 0.28s cubic-bezier(0.32,0.72,0,1); }
+.animate-fade-in { animation: fade-in 0.2s ease; }

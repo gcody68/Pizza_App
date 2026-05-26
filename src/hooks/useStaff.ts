@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type DayAvailability = {
+export interface DayAvailability {
   enabled: boolean;
-  start: string;  // "HH:MM"
-  end: string;    // "HH:MM"
-};
+  start: string;
+  end: string;
+}
 
-export type WeeklyAvailability = {
+export interface WeeklyAvailability {
   Mon: DayAvailability;
   Tue: DayAvailability;
   Wed: DayAvailability;
@@ -15,31 +15,36 @@ export type WeeklyAvailability = {
   Fri: DayAvailability;
   Sat: DayAvailability;
   Sun: DayAvailability;
-};
+}
 
-export type StaffProfile = {
+export interface StaffProfile {
   id: string;
   restaurant_id: string;
   name: string;
   is_clocked_in: boolean;
   color: string | null;
   color_index: number | null;
-  shift_start: string | null;  // "HH:MM" 24h
+  shift_start: string | null;
   shift_end: string | null;
   break_start: string | null;
   break_end: string | null;
   weekly_availability: WeeklyAvailability | null;
   created_at: string;
-};
+}
 
-export type StaffServiceDuration = {
+export interface ShiftLog {
   id: string;
   staff_id: string;
-  menu_item_id: string;
-  duration_minutes: number;
-};
+  restaurant_id: string;
+  event: "clock_in" | "clock_out";
+  logged_at: string;
+}
 
-export function useStaff(restaurantId?: string | null) {
+const PALETTE = [
+  "#C9A84C", "#7EB8B0", "#E07B7B", "#A07BD4", "#60A5FA", "#34D399", "#FB923C",
+];
+
+export function useStaff(restaurantId: string | null | undefined) {
   return useQuery({
     queryKey: ["staff", restaurantId],
     queryFn: async () => {
@@ -50,27 +55,10 @@ export function useStaff(restaurantId?: string | null) {
         .eq("restaurant_id", restaurantId)
         .order("created_at");
       if (error) throw error;
-      return data as StaffProfile[];
+      return (data ?? []) as StaffProfile[];
     },
     enabled: !!restaurantId,
-  });
-}
-
-export function useClockedInStaff(restaurantId?: string | null) {
-  return useQuery({
-    queryKey: ["staff-clocked-in", restaurantId],
-    queryFn: async () => {
-      if (!restaurantId) return [] as StaffProfile[];
-      const { data, error } = await supabase
-        .from("staff_profiles")
-        .select("*")
-        .eq("restaurant_id", restaurantId)
-        .eq("is_clocked_in", true)
-        .order("created_at");
-      if (error) throw error;
-      return data as StaffProfile[];
-    },
-    enabled: !!restaurantId,
+    staleTime: 30_000,
   });
 }
 
@@ -84,7 +72,6 @@ export function useToggleClockIn() {
         .eq("id", id);
       if (error) throw error;
 
-      // Best-effort timecard log — fetch the staff row to get restaurant_id
       const { data: staffRow } = await supabase
         .from("staff_profiles")
         .select("restaurant_id")
@@ -100,45 +87,10 @@ export function useToggleClockIn() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staff"] });
-      qc.invalidateQueries({ queryKey: ["staff-clocked-in"] });
       qc.invalidateQueries({ queryKey: ["shift-logs"] });
     },
   });
 }
-
-export function useUpdateStaffSchedule() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      id,
-      shift_start,
-      shift_end,
-      break_start,
-      break_end,
-    }: {
-      id: string;
-      shift_start: string | null;
-      shift_end: string | null;
-      break_start: string | null;
-      break_end: string | null;
-    }) => {
-      const { error } = await supabase
-        .from("staff_profiles")
-        .update({ shift_start, shift_end, break_start, break_end })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff"] });
-      qc.invalidateQueries({ queryKey: ["staff-clocked-in"] });
-      qc.invalidateQueries({ queryKey: ["available-slots"] });
-    },
-  });
-}
-
-const PALETTE = [
-  "#C9A84C", "#7EB8B0", "#E07B7B", "#A07BD4", "#60A5FA", "#34D399", "#FB923C",
-];
 
 export function useCreateStaff() {
   const qc = useQueryClient();
@@ -152,7 +104,6 @@ export function useCreateStaff() {
       name: string;
       colorIndexHint?: number;
     }): Promise<StaffProfile> => {
-      // Determine color from hint or query existing count
       let colorIndex = colorIndexHint ?? 0;
       if (colorIndexHint === undefined) {
         const { data: existing } = await supabase
@@ -162,13 +113,11 @@ export function useCreateStaff() {
         colorIndex = (existing?.length ?? 0) % PALETTE.length;
       }
       const color = PALETTE[colorIndex % PALETTE.length];
-
       const { data, error } = await supabase
         .from("staff_profiles")
         .insert({ restaurant_id, name, is_clocked_in: false, color, color_index: colorIndex })
         .select()
         .single();
-
       if (error) throw new Error(error.message);
       return data as StaffProfile;
     },
@@ -183,105 +132,23 @@ export function useDeleteStaff() {
       const { error } = await supabase.from("staff_profiles").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff"] });
-      qc.invalidateQueries({ queryKey: ["staff-clocked-in"] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff"] }),
   });
 }
 
 export function useUpdateStaffAvailability() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      id,
-      weekly_availability,
-    }: {
-      id: string;
-      weekly_availability: WeeklyAvailability | null;
-    }) => {
+    mutationFn: async ({ id, weekly_availability }: { id: string; weekly_availability: WeeklyAvailability }) => {
       const { error } = await supabase
         .from("staff_profiles")
         .update({ weekly_availability })
         .eq("id", id);
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff"] });
-      qc.invalidateQueries({ queryKey: ["available-slots"] });
-    },
-  });
-}
-
-// ── Service duration overrides ────────────────────────────────────────────────
-
-export function useStaffServiceDurations(staffId?: string | null) {
-  return useQuery({
-    queryKey: ["staff-service-durations", staffId],
-    queryFn: async () => {
-      if (!staffId) return [] as StaffServiceDuration[];
-      const { data, error } = await supabase
-        .from("staff_service_durations")
-        .select("*")
-        .eq("staff_id", staffId);
-      if (error) throw error;
-      return data as StaffServiceDuration[];
-    },
-    enabled: !!staffId,
-  });
-}
-
-export function useUpsertStaffServiceDuration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      staff_id,
-      menu_item_id,
-      duration_minutes,
-    }: {
-      staff_id: string;
-      menu_item_id: string;
-      duration_minutes: number;
-    }) => {
-      const { error } = await supabase
-        .from("staff_service_durations")
-        .upsert({ staff_id, menu_item_id, duration_minutes }, { onConflict: "staff_id,menu_item_id" });
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ["staff-service-durations", vars.staff_id] });
-      qc.invalidateQueries({ queryKey: ["available-slots"] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff"] }),
   });
 }
-
-export function useDeleteStaffServiceDuration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ staff_id, menu_item_id }: { staff_id: string; menu_item_id: string }) => {
-      const { error } = await supabase
-        .from("staff_service_durations")
-        .delete()
-        .eq("staff_id", staff_id)
-        .eq("menu_item_id", menu_item_id);
-      if (error) throw error;
-    },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ["staff-service-durations", vars.staff_id] });
-      qc.invalidateQueries({ queryKey: ["available-slots"] });
-    },
-  });
-}
-
-// ── Shift logs for payroll ────────────────────────────────────────────────────
-
-export type ShiftLog = {
-  id: string;
-  staff_id: string;
-  restaurant_id: string;
-  event: "clock_in" | "clock_out";
-  logged_at: string;
-};
 
 export function useShiftLogs(restaurantId: string | null | undefined, startIso: string, endIso: string) {
   return useQuery({
@@ -296,37 +163,10 @@ export function useShiftLogs(restaurantId: string | null | undefined, startIso: 
         .lte("logged_at", `${endIso}T23:59:59`)
         .order("staff_id")
         .order("logged_at");
-      if (error) throw error;
+      if (error) return [] as ShiftLog[];
       return (data ?? []) as ShiftLog[];
     },
     enabled: !!restaurantId,
     staleTime: 60_000,
-  });
-}
-
-// ── Available time slots (calls Supabase RPC) ─────────────────────────────────
-export function useAvailableSlots(
-  restaurantId: string | null | undefined,
-  date: string,
-  durationMinutes: number | null | undefined,
-  staffId: string | null,
-  menuItemId?: string | null,
-) {
-  return useQuery({
-    queryKey: ["available-slots", restaurantId, date, durationMinutes, staffId, menuItemId],
-    queryFn: async () => {
-      if (!restaurantId || !date || !durationMinutes) return [] as string[];
-      const { data, error } = await supabase.rpc("get_available_slots", {
-        p_restaurant_id:    restaurantId,
-        p_date:             date,
-        p_duration_minutes: durationMinutes,
-        p_staff_id:         staffId ?? null,
-        p_menu_item_id:     menuItemId ?? null,
-      });
-      if (error) throw error;
-      return (data ?? []) as string[];
-    },
-    enabled: !!restaurantId && !!date && durationMinutes != null && durationMinutes > 0,
-    staleTime: 30_000,
   });
 }
