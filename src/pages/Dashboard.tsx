@@ -17,6 +17,7 @@ import ThemeSelector from "@/components/ThemeSelector";
 import BackgroundStyleSelector, { type BgStyleId, applyBgStyle as applyBgStyleFn, getBgStyleById as getBgStyleByIdFn } from "@/components/BackgroundStyleSelector";
 import { type ThemeId, applyTheme as applyThemeFn, getThemeById as getThemeByIdFn } from "@/lib/themes";
 import HoursServicesTab from "@/components/HoursServicesTab";
+import BookkeepingTab from "@/components/BookkeepingTab";
 import SiteSettingsTab from "@/components/SiteSettingsTab";
 import ProfileTab from "@/components/ProfileTab";
 import ExcelImporter from "@/components/ExcelImporter";
@@ -25,7 +26,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban, CalendarDays } from "lucide-react";
+import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban, CalendarDays, BookOpen } from "lucide-react";
 import { useMenuItems, type MenuItem } from "@/hooks/useMenuItems";
 import MenuItemModal from "@/components/MenuItemModal";
 import { STARTER_ITEMS } from "@/components/StarterContent";
@@ -571,6 +572,7 @@ function DashboardContent() {
     { id: "branding", label: "Branding", icon: Settings },
     { id: "hours", label: "Hours & Services", icon: Clock },
     { id: "payment", label: "Payment", icon: CreditCard },
+    ...(isSalon ? [{ id: "bookkeeping", label: "Bookkeeping", icon: BookOpen }] : []),
     ...(!isSalon ? [{ id: "kitchen", label: "Kitchen", icon: Monitor }] : []),
     ...(isSuperAdmin ? [
       { id: "super_admin", label: "Super Admin", icon: Shield },
@@ -1176,6 +1178,13 @@ function DashboardContent() {
                   </Button>
                 </div>
               </div>
+            </>
+          )}
+
+          {activeTab === "bookkeeping" && isSalon && menuRestaurantId && (
+            <>
+              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">Bookkeeping & Payouts</h1>
+              <BookkeepingTab restaurantId={menuRestaurantId} />
             </>
           )}
 
