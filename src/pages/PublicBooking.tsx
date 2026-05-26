@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Scissors, ChevronRight, Clock, Star, MapPin, Phone, Search, Check, MessageSquare, Lock } from "lucide-react";
+import { useSiteTheme } from "@/lib/themeContext";
 
 interface Service {
   id: string;
@@ -68,6 +69,36 @@ function ServiceCard({ svc, onSelect }: { svc: Service; onSelect: () => void }) 
           </div>
         </div>
       </div>
+    </button>
+  );
+}
+
+// ── Stylist card (extracted to avoid hook-in-map) ─────────────────────────────
+function StylistCard({ stylist, selected, onSelect }: {
+  stylist: typeof STYLISTS[number]; selected: boolean; onSelect: () => void;
+}) {
+  const [imgErr, setImgErr] = useState(false);
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all hover:shadow-sm ${selected ? "border-[hsl(38,65%,55%)] bg-[hsl(38,65%,55%)]/5" : "border-stone-100 bg-white hover:border-stone-200"}`}
+    >
+      <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: stylist.color + "30" }}>
+        {!imgErr
+          ? <img src={stylist.image} alt={stylist.name} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
+          : <div className="w-full h-full flex items-center justify-center text-sm font-bold" style={{ color: stylist.color }}>{stylist.name.split(" ").map(w => w[0]).join("")}</div>
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-stone-800">{stylist.name}</p>
+        <p className="text-xs text-stone-400">{stylist.title}</p>
+        <div className="flex items-center gap-1 mt-1">
+          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+          <span className="text-xs font-semibold text-stone-700">{stylist.rating}</span>
+          <span className="text-xs text-stone-400">({stylist.reviews})</span>
+        </div>
+      </div>
+      <ChevronRight className="w-4 h-4 text-stone-300" />
     </button>
   );
 }
@@ -182,6 +213,7 @@ function SentScreen({ phone, svc, onDone }: { phone: string; svc: Service; onDon
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PublicBooking() {
   const navigate = useNavigate();
+  const { theme } = useSiteTheme();
   const [cat, setCat] = useState<CatId>("all");
   const [search, setSearch] = useState("");
   const [step, setStep] = useState<Step>("services");
@@ -206,7 +238,7 @@ export default function PublicBooking() {
   const stylistName = STYLISTS.find(s => s.id === selectedStylistId)?.name ?? "";
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "hsl(35,25%,97%)", fontFamily: "'Inter',sans-serif" }}>
+    <div className="min-h-screen flex flex-col" style={{ background: theme.bg, fontFamily: "'Inter',sans-serif" }}>
 
       {/* Header */}
       <header className="bg-white border-b border-stone-100">
@@ -249,7 +281,11 @@ export default function PublicBooking() {
             <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
               {CATEGORIES.map(c => (
                 <button key={c.id} onClick={() => setCat(c.id)}
-                  className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${cat === c.id ? "gradient-gold text-white shadow-sm" : "bg-white border border-stone-200 text-stone-600 hover:border-stone-300"}`}>
+                  style={cat === c.id
+                    ? { background: theme.pillActive, color: theme.pillActiveText, border: "1px solid transparent" }
+                    : { background: "white", color: "#57534e", border: `1px solid ${theme.cardBorder}` }
+                  }
+                  className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold transition-all shadow-sm">
                   {c.label}
                 </button>
               ))}
@@ -296,31 +332,14 @@ export default function PublicBooking() {
             </div>
             <p className="text-sm font-semibold text-stone-700">Choose your stylist</p>
             <div className="space-y-3">
-              {STYLISTS.map(stylist => {
-                const [imgErr, setImgErr] = useState(false);
-                return (
-                  <button key={stylist.id}
-                    onClick={() => { setSelectedStylistId(stylist.id); setStep("datetime"); }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all hover:shadow-sm ${selectedStylistId === stylist.id ? "border-[hsl(38,65%,55%)] bg-[hsl(38,65%,55%)]/5" : "border-stone-100 bg-white hover:border-stone-200"}`}>
-                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: stylist.color+"30" }}>
-                      {!imgErr
-                        ? <img src={stylist.image} alt={stylist.name} className="w-full h-full object-cover" onError={() => setImgErr(true)} />
-                        : <div className="w-full h-full flex items-center justify-center text-sm font-bold" style={{ color: stylist.color }}>{stylist.name.split(" ").map(w=>w[0]).join("")}</div>
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-stone-800">{stylist.name}</p>
-                      <p className="text-xs text-stone-400">{stylist.title}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-xs font-semibold text-stone-700">{stylist.rating}</span>
-                        <span className="text-xs text-stone-400">({stylist.reviews})</span>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-stone-300" />
-                  </button>
-                );
-              })}
+              {STYLISTS.map(stylist => (
+                <StylistCard
+                  key={stylist.id}
+                  stylist={stylist}
+                  selected={selectedStylistId === stylist.id}
+                  onSelect={() => { setSelectedStylistId(stylist.id); setStep("datetime"); }}
+                />
+              ))}
             </div>
           </div>
         )}

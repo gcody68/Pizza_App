@@ -5,7 +5,7 @@ import {
   type StaffProfile, type WeeklyAvailability, type DayAvailability,
 } from "@/hooks/useStaff";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Loader as Loader2, ChevronLeft, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Loader as Loader2, ChevronLeft, ChevronDown, TriangleAlert as AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { SeedStylist } from "@/lib/stylists";
 
@@ -178,12 +178,40 @@ function DirectoryRow({ member, onSelect, onDelete }: { member: StaffProfile; on
         {clocked ? "On Floor" : "Off Duty"}
       </button>
       <ChevronDown className="w-4 h-4 text-stone-200 flex-shrink-0 -rotate-90" />
-      {!fallback && (
-        <button onClick={e => { e.stopPropagation(); onDelete(); }}
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-stone-200 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-          <Trash2 className="w-3 h-3" />
-        </button>
-      )}
+      <button onClick={e => { e.stopPropagation(); onDelete(); }}
+        className="w-6 h-6 rounded-lg flex items-center justify-center text-stone-200 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
+// ── Delete confirmation modal ─────────────────────────────────────────────────
+function DeleteConfirmModal({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onCancel} />
+      <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-80 mx-4 animate-fade-in">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-stone-800">Remove team member?</p>
+            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+              <span className="font-semibold text-stone-700">{name}</span> will be removed from the directory and their calendar column will disappear.
+            </p>
+          </div>
+          <div className="flex gap-2 w-full mt-1">
+            <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-stone-200 text-sm font-semibold text-stone-600 hover:bg-stone-50 transition-colors">
+              Cancel
+            </button>
+            <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -194,11 +222,13 @@ export default function StaffCheckInWidget({
   initialExpandName,
   seedStylists = [],
   onStaffAdded,
+  onStaffDeleted,
 }: {
   restaurantId: string;
   initialExpandName?: string | null;
   seedStylists?: SeedStylist[];
   onStaffAdded?: (name: string, color: string) => void;
+  onStaffDeleted?: (name: string) => void;
 }) {
   const { data: dbStaff } = useStaff(restaurantId || null);
   const createStaff = useCreateStaff();
@@ -218,6 +248,7 @@ export default function StaffCheckInWidget({
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   const PALETTE = ["#C9A84C", "#3A9B8F", "#C07080", "#7B68C8", "#60A5FA", "#34D399", "#FB923C"];
 
@@ -245,6 +276,8 @@ export default function StaffCheckInWidget({
     setLocalStaff(prev => prev.filter(s => s.id !== id));
     if (!isFallback(id)) { try { await deleteStaff.mutateAsync(id); } catch { /* silent */ } }
     toast.success(`${name} removed`);
+    onStaffDeleted?.(name);
+    setPendingDelete(null);
   };
 
   const clockedInCount = staff.filter(s => s.is_clocked_in).length;
@@ -272,7 +305,7 @@ export default function StaffCheckInWidget({
           {staff.map(member => (
             <DirectoryRow key={member.id} member={member}
               onSelect={() => setFocusedName(member.name)}
-              onDelete={() => handleDelete(member.id, member.name)} />
+              onDelete={() => setPendingDelete({ id: member.id, name: member.name })} />
           ))}
         </div>
       )}
@@ -299,6 +332,14 @@ export default function StaffCheckInWidget({
       <p className="text-xs text-stone-400 leading-relaxed">
         <span className="text-stone-600 font-semibold">Tap any row</span> to configure schedule and toggle presence.
       </p>
+
+      {pendingDelete && (
+        <DeleteConfirmModal
+          name={pendingDelete.name}
+          onConfirm={() => handleDelete(pendingDelete.id, pendingDelete.name)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

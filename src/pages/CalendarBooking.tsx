@@ -1,10 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ChevronLeft, ChevronRight, Plus, Scissors, Bell, X, ArrowLeft,
-  Zap, CalendarDays, UserCheck, Filter, DollarSign, Users,
-  ChartBar as BarChart3, MoveHorizontal, CreditCard, Pencil, Check, ChevronDown,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Scissors, Bell, X, ArrowLeft, Zap, CalendarDays, UserCheck, ListFilter as Filter, DollarSign, Users, ChartBar as BarChart3, MoveHorizontal, CreditCard, Pencil, Check, ChevronDown } from "lucide-react";
 import StaffCheckInWidget from "@/components/StaffCheckInWidget";
 import { SEED_STYLISTS, type SeedStylist } from "@/lib/stylists";
 
@@ -249,6 +245,10 @@ export default function CalendarBooking() {
     setStylists(prev => [...prev, { id: `new-${Date.now()}`, name, initials, color, colorLight: "#faf9f7", colorBorder: "#e5e2db", appointments: [] }]);
   }, []);
 
+  const handleStaffDeleted = useCallback((name: string) => {
+    setStylists(prev => prev.filter(s => s.name !== name));
+  }, []);
+
   const openStaffPanel = (focusName?: string) => { setStaffFocusName(focusName ?? null); setStaffPanelOpen(true); };
   const closeStaffPanel = () => { setStaffPanelOpen(false); setStaffFocusName(null); };
 
@@ -322,6 +322,7 @@ export default function CalendarBooking() {
                 initialExpandName={staffFocusName}
                 seedStylists={seedStylists}
                 onStaffAdded={handleStaffAdded}
+                onStaffDeleted={handleStaffDeleted}
               />
             </div>
           </div>

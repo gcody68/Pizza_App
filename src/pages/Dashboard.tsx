@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Scissors, User, CalendarDays, ChartBar as BarChart3, Bell, CreditCard, Settings, Clock, ChevronRight, Globe, LogOut, Menu, X, Key, ExternalLink } from "lucide-react";
+import { Scissors, User, CalendarDays, ChartBar as BarChart3, Bell, CreditCard, Settings, Clock, ChevronRight, Globe, LogOut, Menu, X, Key, ExternalLink, Upload, Check, Loader as Loader2, Shield } from "lucide-react";
 import BookkeepingTab from "@/components/BookkeepingTab";
 import HoursServicesTab from "@/components/HoursServicesTab";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
+import { useSiteTheme, SITE_THEMES } from "@/lib/themeContext";
 
 type TabId = "profile" | "branding" | "hours" | "payment" | "schedule" | "staff";
 
@@ -230,39 +231,208 @@ function ProfileTab() {
 
 // ── Branding Tab ───────────────────────────────────────────────────────────────
 function BrandingTab() {
+  const { theme, setThemeId } = useSiteTheme();
+  const logoRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+  const [logoName, setLogoName] = useState<string | null>(null);
+  const [bannerName, setBannerName] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const THEME_PREVIEWS = [
+    { id: "luxury", swatchBg: "#FAF7F2", swatchAccent: "#B8860B", desc: "Warm Cream · Matte Black" },
+    { id: "earthy",  swatchBg: "#EEF4EE", swatchAccent: "#2D5A3D", desc: "Soft Sage · Deep Charcoal" },
+    { id: "glam",    swatchBg: "#FBF2F4", swatchAccent: "#B84D6A", desc: "Dusty Rose · Dark Slate" },
+  ];
+
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  };
+
   return (
     <div className="space-y-6">
-      <SectionHead title="Branding" sub="Customize your salon's visual identity." />
-      <div className="rounded-2xl border p-6" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
-        <p className="text-sm text-center py-8" style={{ color: "hsl(215,20%,45%)" }}>Branding customization coming soon.</p>
+      <SectionHead title="Branding" sub="Customize your salon's public visual identity." />
+
+      {/* Theme selector */}
+      <div className="rounded-2xl border p-6 space-y-4" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "hsl(215,20%,55%)" }}>Public Site Accent Theme</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {THEME_PREVIEWS.map(tp => {
+            const meta = SITE_THEMES.find(t => t.id === tp.id)!;
+            const isSelected = theme.id === tp.id;
+            return (
+              <button
+                key={tp.id}
+                onClick={() => setThemeId(tp.id)}
+                className="relative group rounded-xl overflow-hidden border-2 transition-all text-left"
+                style={{ borderColor: isSelected ? tp.swatchAccent : "hsl(215,25%,28%)" }}
+              >
+                {/* Color preview bar */}
+                <div className="h-16 flex" style={{ background: tp.swatchBg }}>
+                  <div className="w-1/3 h-full" style={{ background: tp.swatchAccent, opacity: 0.9 }} />
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="space-y-1.5 px-2">
+                      <div className="h-1.5 rounded-full w-12" style={{ background: tp.swatchAccent, opacity: 0.4 }} />
+                      <div className="h-1.5 rounded-full w-8" style={{ background: tp.swatchAccent, opacity: 0.25 }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="px-3 py-2.5" style={{ background: "hsl(215,28%,15%)" }}>
+                  <p className="text-xs font-bold text-white leading-tight">{meta.label}</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "hsl(215,20%,50%)" }}>{tp.desc}</p>
+                </div>
+                {isSelected && (
+                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: tp.swatchAccent }}>
+                    <Check className="w-3 h-3 text-white" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px]" style={{ color: "hsl(215,20%,42%)" }}>
+          Theme changes apply to the public booking site instantly — your clients see the updated palette in real time.
+        </p>
+      </div>
+
+      {/* Logo upload */}
+      <div className="rounded-2xl border p-6 space-y-4" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "hsl(215,20%,55%)" }}>Media Assets</p>
+        {[
+          { label: "Salon Header Logo", sub: "PNG or SVG · Recommended 240×60px · Max 2MB", ref: logoRef, name: logoName, setName: setLogoName },
+          { label: "Banner Image", sub: "JPG or PNG · Recommended 1440×480px · Max 5MB", ref: bannerRef, name: bannerName, setName: setBannerName },
+        ].map(({ label, sub, ref, name, setName }) => (
+          <div key={label}>
+            <p className="text-xs font-semibold mb-2 text-white">{label}</p>
+            <input
+              ref={ref}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => setName(e.target.files?.[0]?.name ?? null)}
+            />
+            <button
+              onClick={() => ref.current?.click()}
+              className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed transition-all"
+              style={{ borderColor: name ? "hsl(38,65%,55%)" : "hsl(215,25%,30%)", background: name ? "hsl(38,65%,55%,0.06)" : "hsl(215,28%,14%)" }}
+            >
+              {name ? (
+                <>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "hsl(38,65%,55%,0.15)" }}>
+                    <Check className="w-4 h-4" style={{ color: "hsl(38,65%,55%)" }} />
+                  </div>
+                  <p className="text-xs font-semibold" style={{ color: "hsl(38,65%,60%)" }}>{name}</p>
+                  <p className="text-[10px]" style={{ color: "hsl(215,20%,50%)" }}>Click to replace</p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-5 h-5" style={{ color: "hsl(215,20%,45%)" }} />
+                  <p className="text-xs font-semibold text-white">Click to upload</p>
+                  <p className="text-[10px]" style={{ color: "hsl(215,20%,45%)" }}>{sub}</p>
+                </>
+              )}
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={handleSave}
+          className="gradient-gold text-white font-semibold text-sm px-5 py-2.5 rounded-xl hover:opacity-90 transition-all flex items-center gap-2"
+        >
+          {saved ? <><Check className="w-4 h-4" /> Saved!</> : "Save Branding"}
+        </button>
       </div>
     </div>
   );
 }
 
 // ── Payment Tab ────────────────────────────────────────────────────────────────
+type StripeState = "idle" | "connecting" | "connected";
+
 function PaymentTab() {
+  const [stripeState, setStripeState] = useState<StripeState>("idle");
+  const ACCT_ID = "acct_10Mxx9L";
+
+  const handleConnect = () => {
+    setStripeState("connecting");
+    setTimeout(() => setStripeState("connected"), 1500);
+  };
+
   return (
     <div className="space-y-6">
       <SectionHead title="Payment" sub="Connect Stripe to accept deposits and checkout payments." />
+
+      {/* Stripe card */}
       <div className="rounded-2xl border p-6 space-y-4" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
-        <div className="flex items-center gap-4 p-4 rounded-xl border" style={{ background: "hsl(215,28%,14%)", borderColor: "hsl(215,25%,24%)" }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsl(230,60%,55%,0.15)" }}>
-            <CreditCard className="w-5 h-5" style={{ color: "hsl(230,60%,65%)" }} />
+
+        {stripeState === "connected" ? (
+          <>
+            {/* Connected banner */}
+            <div className="flex items-center gap-3 p-4 rounded-xl border" style={{ background: "hsl(145,50%,14%)", borderColor: "hsl(145,40%,28%)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsl(145,50%,22%)" }}>
+                <Check className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-emerald-400">Stripe Live Payout Account Connected</p>
+                <p className="text-xs mt-0.5 font-mono" style={{ color: "hsl(145,30%,55%)" }}>ID: {ACCT_ID}</p>
+              </div>
+              <Shield className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+            </div>
+
+            {/* Payout details */}
+            <div className="rounded-xl border divide-y" style={{ borderColor: "hsl(215,25%,26%)", background: "hsl(215,28%,14%)" }}>
+              {[
+                { label: "Payout Schedule", value: "Daily automatic" },
+                { label: "Bank Account", value: "Chase ••••4821" },
+                { label: "Default Currency", value: "USD" },
+                { label: "Platform Fee", value: "2.9% + 30¢ per transaction" },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between px-4 py-3">
+                  <span className="text-xs" style={{ color: "hsl(215,20%,50%)" }}>{label}</span>
+                  <span className="text-xs font-semibold text-white">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button className="flex-1 py-2.5 rounded-xl border text-xs font-semibold transition-colors" style={{ borderColor: "hsl(215,25%,30%)", color: "hsl(215,20%,60%)" }}>
+                Manage in Stripe Dashboard
+              </button>
+              <button onClick={() => setStripeState("idle")} className="px-4 py-2.5 rounded-xl text-xs font-semibold transition-colors" style={{ color: "hsl(0,70%,60%)", border: "1px solid hsl(0,40%,28%)" }}>
+                Disconnect
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-4 p-4 rounded-xl border" style={{ background: "hsl(215,28%,14%)", borderColor: "hsl(215,25%,24%)" }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "hsl(230,60%,55%,0.15)" }}>
+              {stripeState === "connecting"
+                ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: "hsl(230,60%,65%)" }} />
+                : <CreditCard className="w-5 h-5" style={{ color: "hsl(230,60%,65%)" }} />
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">Stripe</p>
+              {stripeState === "connecting" ? (
+                <p className="text-xs mt-0.5 animate-pulse" style={{ color: "hsl(230,60%,60%)" }}>
+                  Securing handshake with Stripe onboarding API...
+                </p>
+              ) : (
+                <p className="text-xs mt-0.5" style={{ color: "hsl(215,20%,50%)" }}>
+                  Connect your Stripe account to accept card payments and manage payouts.
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleConnect}
+              disabled={stripeState === "connecting"}
+              className="px-4 py-2 rounded-xl border text-xs font-semibold transition-all disabled:opacity-60 flex items-center gap-1.5"
+              style={{ borderColor: "hsl(215,25%,32%)", color: "hsl(215,20%,65%)" }}
+            >
+              {stripeState === "connecting" && <Loader2 className="w-3 h-3 animate-spin" />}
+              {stripeState === "connecting" ? "Connecting…" : "Connect with Stripe"}
+            </button>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-white">Stripe</p>
-            <p className="text-xs mt-0.5" style={{ color: "hsl(215,20%,50%)" }}>
-              Connect your Stripe account to accept card payments and manage payouts.
-            </p>
-          </div>
-          <button
-            className="px-4 py-2 rounded-xl border text-xs font-semibold transition-colors"
-            style={{ borderColor: "hsl(215,25%,32%)", color: "hsl(215,20%,65%)" }}
-          >
-            Connect
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
