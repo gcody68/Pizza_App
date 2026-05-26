@@ -597,6 +597,3 @@ export default function BookkeepingTab({ restaurantId }: { restaurantId: string 
     </div>
   );
 }
-
-
-export default BookkeepingTab
