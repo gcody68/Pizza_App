@@ -7,6 +7,7 @@ import "./index.css";
 import Dashboard from "./pages/Dashboard";
 import CalendarBooking from "./pages/CalendarBooking";
 import PublicBooking from "./pages/PublicBooking";
+import NotificationsSettings from "./pages/NotificationsSettings";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 
@@ -18,6 +19,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/" element={<PublicBooking />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/calendar" element={<CalendarBooking />} />
+          <Route path="/notifications" element={<NotificationsSettings />} />
         </Routes>
       </BrowserRouter>
       <Toaster richColors position="top-right" />
