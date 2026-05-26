@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Clock, Search, Bell, User, Scissors, Star, Package, CreditCard, X, ChevronDown, Check, Smartphone, ArrowLeft, Zap, TriangleAlert as AlertTriangle, CalendarDays, MoveHorizontal as MoreHorizontal, Filter, TrendingUp, Pencil, FlaskConical, Link2, DollarSign, Users, ChartBar as BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Search, Bell, User, Scissors, Star, Package, CreditCard, X, ChevronDown, Check, Smartphone, ArrowLeft, Zap, TriangleAlert as AlertTriangle, CalendarDays, MoveHorizontal as MoreHorizontal, Filter, TrendingUp, Pencil, FlaskConical, Link2, DollarSign, Users, ChartBar as BarChart3, UserCheck } from "lucide-react";
+import StaffCheckInWidget from "@/components/StaffCheckInWidget";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -800,6 +802,8 @@ function AppointmentDrawer({
 
 export default function CalendarBooking() {
   const navigate = useNavigate();
+  const { data: settings } = useRestaurantSettings();
+  const restaurantId = settings?.id ?? null;
   const [today] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [stylists, setStylists] = useState<Stylist[]>(INITIAL_STYLISTS);
@@ -809,6 +813,7 @@ export default function CalendarBooking() {
   const [drawerAddOns, setDrawerAddOns] = useState<AddOnService[]>([]);
   const [showAddService, setShowAddService] = useState(false);
   const [highlightBlock, setHighlightBlock] = useState<HighlightBlock | null>(null);
+  const [showStaffPanel, setShowStaffPanel] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -881,11 +886,50 @@ export default function CalendarBooking() {
             <Bell className="w-4 h-4" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-400 border border-white" />
           </button>
+          <button
+            onClick={() => setShowStaffPanel(true)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-700 text-xs font-semibold hover:bg-stone-50 transition-colors"
+          >
+            <UserCheck className="w-3.5 h-3.5" /> Staff
+          </button>
           <button className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 text-white text-xs font-semibold hover:bg-stone-700 transition-colors">
             <Plus className="w-3.5 h-3.5" /> New Booking
           </button>
         </div>
       </header>
+
+      {/* ── Staff Check-In slide-over panel ── */}
+      {showStaffPanel && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={() => setShowStaffPanel(false)} />
+          <div className="relative w-full max-w-sm bg-card border-l border-border shadow-2xl flex flex-col overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-gold" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Staff Check-In</p>
+                  <p className="text-[11px] text-muted-foreground">Manage who is on shift today</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStaffPanel(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 px-5 py-5">
+              {restaurantId ? (
+                <StaffCheckInWidget restaurantId={restaurantId} />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Live Analytics Bar ── */}
       <div className="flex-shrink-0 bg-stone-900 border-b border-stone-800 px-4 lg:px-6 py-2.5 flex items-center gap-2 overflow-x-auto">

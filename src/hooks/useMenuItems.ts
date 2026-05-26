@@ -34,6 +34,7 @@ export type MenuItem = {
   variants: ItemVariant[] | null;
   options: ItemOptionGroup[] | null;
   duration_minutes: number | null;
+  processing_gap_minutes: number | null;
 };
 
 export const SERVICE_PERIOD_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "All Day"] as const;
@@ -119,6 +120,7 @@ export function useMenuItems(restaurantId?: string | null) {
           variants: null,
           options: null,
           duration_minutes: item.duration_minutes ?? null,
+          processing_gap_minutes: null,
         })) as MenuItem[];
       }
       return data as MenuItem[];

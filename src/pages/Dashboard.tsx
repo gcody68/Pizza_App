@@ -16,7 +16,7 @@ import { uploadImage } from "@/hooks/useImageUpload";
 import ThemeSelector from "@/components/ThemeSelector";
 import BackgroundStyleSelector, { type BgStyleId, applyBgStyle as applyBgStyleFn, getBgStyleById as getBgStyleByIdFn } from "@/components/BackgroundStyleSelector";
 import { type ThemeId, applyTheme as applyThemeFn, getThemeById as getThemeByIdFn } from "@/lib/themes";
-import ServiceHoursTab from "@/components/ServiceHoursTab";
+import HoursServicesTab from "@/components/HoursServicesTab";
 import SiteSettingsTab from "@/components/SiteSettingsTab";
 import ProfileTab from "@/components/ProfileTab";
 import ExcelImporter from "@/components/ExcelImporter";
@@ -28,8 +28,6 @@ import {
 import { UtensilsCrossed, Settings, Clock, CreditCard, Monitor, Globe, User, Save, ImagePlus, Loader as Loader2, X, Trash2, FileSpreadsheet, KeyRound, ExternalLink, Download, LogOut, ChefHat, Scissors, Plus, Pencil, Menu as MenuIcon, Bitcoin, Shield, UserCheck, TrendingDown, RefreshCw, Ban, CalendarDays } from "lucide-react";
 import { useMenuItems, type MenuItem } from "@/hooks/useMenuItems";
 import MenuItemModal from "@/components/MenuItemModal";
-import StaffCheckInWidget from "@/components/StaffCheckInWidget";
-import ServiceDurationTab from "@/components/ServiceDurationTab";
 import { STARTER_ITEMS } from "@/components/StarterContent";
 import { useImpersonation, ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
@@ -571,10 +569,9 @@ function DashboardContent() {
   const NAV_TABS = [
     { id: "profile", label: "Profile", icon: User },
     { id: "branding", label: "Branding", icon: Settings },
-    { id: "hours", label: isSalon ? "Service Hours" : "Hours", icon: Clock },
+    { id: "hours", label: "Hours & Services", icon: Clock },
     { id: "payment", label: "Payment", icon: CreditCard },
-    { id: "kitchen", label: isSalon ? "Schedule" : "Kitchen", icon: isSalon ? Scissors : Monitor },
-    ...(isSalon ? [{ id: "staff", label: "Staff", icon: UserCheck }] : []),
+    ...(!isSalon ? [{ id: "kitchen", label: "Kitchen", icon: Monitor }] : []),
     ...(isSuperAdmin ? [
       { id: "super_admin", label: "Super Admin", icon: Shield },
       { id: "churn_analytics", label: "Churn Analytics", icon: TrendingDown },
@@ -1031,30 +1028,19 @@ function DashboardContent() {
             </>
           )}
 
-          {activeTab === "hours" && (
+          {activeTab === "hours" && menuRestaurantId && (
             <>
-              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">
-                {isSalon ? "Service Hours" : "Service Hours"}
-              </h1>
-              {isSalon && menuRestaurantId ? (
-                <ServiceDurationTab restaurantId={menuRestaurantId} />
-              ) : (
-                <>
-                  <ServiceHoursTab
-                    serviceHours={serviceHours}
-                    onChange={setServiceHours}
-                    businessHours={businessHours}
-                    onBusinessHoursChange={setBusinessHours}
-                    unavailableDisplay={unavailableDisplay}
-                    onDisplayChange={setUnavailableDisplay}
-                  />
-                  <div className="pt-4 border-t border-border mt-6">
-                    <Button onClick={handleSave} disabled={update.isPending} className="w-full gradient-gold text-primary-foreground font-semibold">
-                      {update.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
-                    </Button>
-                  </div>
-                </>
-              )}
+              <h1 className="text-2xl font-serif font-bold text-foreground mb-6">Hours &amp; Services</h1>
+              <HoursServicesTab
+                restaurantId={menuRestaurantId}
+                isSalon={isSalon}
+                serviceHours={serviceHours}
+                onServiceHoursChange={setServiceHours}
+                businessHours={businessHours}
+                onBusinessHoursChange={setBusinessHours}
+                onSave={handleSave}
+                saving={update.isPending}
+              />
             </>
           )}
 
@@ -1245,24 +1231,6 @@ function DashboardContent() {
             </>
           )}
 
-          {activeTab === "staff" && isSalon && (
-            <>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-9 h-9 rounded-lg bg-gold/15 flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-gold" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-serif font-bold text-foreground">Staff Check-In</h1>
-                  <p className="text-xs text-muted-foreground">Manage who is on shift and available for bookings</p>
-                </div>
-              </div>
-              {menuRestaurantId ? (
-                <StaffCheckInWidget restaurantId={menuRestaurantId} />
-              ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
-              )}
-            </>
-          )}
 
           {activeTab === "site" && (
             <>
