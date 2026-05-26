@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Scissors, User, CalendarDays, ChartBar as BarChart3, Bell, CreditCard, Settings, Clock, ChevronRight, Globe, LogOut, Menu, X, Key, ExternalLink, Upload, Check, Loader as Loader2, Shield } from "lucide-react";
+import { Scissors, User, CalendarDays, ChartBar as BarChart3, Bell, CreditCard, Settings, Clock, ChevronRight, Globe, LogOut, Menu, X, Key, ExternalLink, Upload, Check, Loader as Loader2, Shield, Pencil, Trash2, Plus } from "lucide-react";
 import BookkeepingTab from "@/components/BookkeepingTab";
 import HoursServicesTab from "@/components/HoursServicesTab";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
@@ -230,13 +230,25 @@ function ProfileTab() {
 }
 
 // ── Branding Tab ───────────────────────────────────────────────────────────────
+const INITIAL_GALLERY = [
+  "https://images.pexels.com/photos/3992874/pexels-photo-3992874.jpeg?auto=compress&cs=tinysrgb&w=600",
+  "https://images.pexels.com/photos/7755250/pexels-photo-7755250.jpeg?auto=compress&cs=tinysrgb&w=600",
+  "https://images.pexels.com/photos/3807570/pexels-photo-3807570.jpeg?auto=compress&cs=tinysrgb&w=600",
+  "https://images.pexels.com/photos/3738340/pexels-photo-3738340.jpeg?auto=compress&cs=tinysrgb&w=600",
+  "https://images.pexels.com/photos/4612274/pexels-photo-4612274.jpeg?auto=compress&cs=tinysrgb&w=600",
+  "https://images.pexels.com/photos/3993435/pexels-photo-3993435.jpeg?auto=compress&cs=tinysrgb&w=600",
+];
+
 function BrandingTab() {
   const { theme, setThemeId } = useSiteTheme();
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [logoName, setLogoName] = useState<string | null>(null);
   const [bannerName, setBannerName] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [gallery, setGallery] = useState<string[]>(INITIAL_GALLERY);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const THEME_PREVIEWS = [
     { id: "luxury", swatchBg: "#FAF7F2", swatchAccent: "#B8860B", desc: "Warm Cream · Matte Black" },
@@ -247,6 +259,23 @@ function BrandingTab() {
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2200);
+  };
+
+  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    if (editingIdx !== null) {
+      setGallery(prev => prev.map((p, i) => i === editingIdx ? url : p));
+      setEditingIdx(null);
+    } else {
+      setGallery(prev => [...prev, url]);
+    }
+    e.target.value = "";
+  };
+
+  const removePhoto = (idx: number) => {
+    setGallery(prev => prev.filter((_, i) => i !== idx));
   };
 
   return (
@@ -267,7 +296,6 @@ function BrandingTab() {
                 className="relative group rounded-xl overflow-hidden border-2 transition-all text-left"
                 style={{ borderColor: isSelected ? tp.swatchAccent : "hsl(215,25%,28%)" }}
               >
-                {/* Color preview bar */}
                 <div className="h-16 flex" style={{ background: tp.swatchBg }}>
                   <div className="w-1/3 h-full" style={{ background: tp.swatchAccent, opacity: 0.9 }} />
                   <div className="flex-1 flex items-center justify-center">
@@ -291,31 +319,79 @@ function BrandingTab() {
           })}
         </div>
         <p className="text-[11px]" style={{ color: "hsl(215,20%,42%)" }}>
-          Theme changes apply to the public booking site instantly — your clients see the updated palette in real time.
+          Theme changes apply to the public booking site instantly.
         </p>
       </div>
 
-      {/* Logo upload */}
+      {/* Gallery photo management — edit/delete visible only here in the owner dashboard */}
+      <div className="rounded-2xl border p-6 space-y-4" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "hsl(215,20%,55%)" }}>Gallery Photos</p>
+          <span className="text-[10px]" style={{ color: "hsl(215,20%,42%)" }}>{gallery.length} photos</span>
+        </div>
+
+        <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleGalleryUpload} />
+
+        <div className="grid grid-cols-3 gap-2">
+          {gallery.map((src, i) => (
+            <div key={i} className="relative group aspect-square rounded-xl overflow-hidden" style={{ background: "hsl(215,28%,14%)" }}>
+              <img src={src} alt="" className="w-full h-full object-cover" />
+              {/* Overlay with actions — owner only, never shown on public site */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                <button
+                  onClick={() => { setEditingIdx(i); galleryRef.current?.click(); }}
+                  title="Replace photo"
+                  className="w-8 h-8 rounded-lg bg-white/90 flex items-center justify-center text-stone-700 hover:bg-white transition-colors shadow-sm"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => removePhoto(i)}
+                  title="Remove photo"
+                  className="w-8 h-8 rounded-lg bg-red-500/90 flex items-center justify-center text-white hover:bg-red-500 transition-colors shadow-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {/* Index badge */}
+              <div className="absolute bottom-1.5 left-1.5 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center">
+                <span className="text-[9px] font-bold text-white">{i + 1}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* Upload new slot */}
+          <button
+            onClick={() => { setEditingIdx(null); galleryRef.current?.click(); }}
+            className="aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 transition-all group"
+            style={{ borderColor: "hsl(215,25%,30%)", background: "hsl(215,28%,14%)" }}
+          >
+            <div className="w-7 h-7 rounded-full flex items-center justify-center transition-colors" style={{ background: "hsl(215,25%,22%)" }}>
+              <Plus className="w-4 h-4" style={{ color: "hsl(38,65%,55%)" }} />
+            </div>
+            <span className="text-[10px] font-semibold text-center leading-tight" style={{ color: "hsl(215,20%,50%)" }}>Upload New</span>
+          </button>
+        </div>
+
+        <p className="text-[11px]" style={{ color: "hsl(215,20%,40%)" }}>
+          Hover a photo to reveal edit and remove controls. Changes appear on the public booking page immediately.
+        </p>
+      </div>
+
+      {/* Logo + Banner upload */}
       <div className="rounded-2xl border p-6 space-y-4" style={{ background: "hsl(215,25%,18%)", borderColor: "hsl(215,25%,24%)" }}>
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "hsl(215,20%,55%)" }}>Media Assets</p>
         {[
-          { label: "Salon Header Logo", sub: "PNG or SVG · Recommended 240×60px · Max 2MB", ref: logoRef, name: logoName, setName: setLogoName },
-          { label: "Banner Image", sub: "JPG or PNG · Recommended 1440×480px · Max 5MB", ref: bannerRef, name: bannerName, setName: setBannerName },
+          { label: "Salon Header Logo", sub: "PNG or SVG · 240×60px recommended · Max 2MB", ref: logoRef, name: logoName, setName: setLogoName },
+          { label: "Banner Image", sub: "JPG or PNG · 1440×480px recommended · Max 5MB", ref: bannerRef, name: bannerName, setName: setBannerName },
         ].map(({ label, sub, ref, name, setName }) => (
           <div key={label}>
             <p className="text-xs font-semibold mb-2 text-white">{label}</p>
-            <input
-              ref={ref}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => setName(e.target.files?.[0]?.name ?? null)}
-            />
-            <button
-              onClick={() => ref.current?.click()}
+            <input ref={ref} type="file" accept="image/*" className="hidden"
+              onChange={e => setName(e.target.files?.[0]?.name ?? null)} />
+            <button onClick={() => ref.current?.click()}
               className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed transition-all"
-              style={{ borderColor: name ? "hsl(38,65%,55%)" : "hsl(215,25%,30%)", background: name ? "hsl(38,65%,55%,0.06)" : "hsl(215,28%,14%)" }}
-            >
+              style={{ borderColor: name ? "hsl(38,65%,55%)" : "hsl(215,25%,30%)", background: name ? "hsl(38,65%,55%,0.06)" : "hsl(215,28%,14%)" }}>
               {name ? (
                 <>
                   <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "hsl(38,65%,55%,0.15)" }}>
@@ -334,10 +410,8 @@ function BrandingTab() {
             </button>
           </div>
         ))}
-        <button
-          onClick={handleSave}
-          className="gradient-gold text-white font-semibold text-sm px-5 py-2.5 rounded-xl hover:opacity-90 transition-all flex items-center gap-2"
-        >
+        <button onClick={handleSave}
+          className="gradient-gold text-white font-semibold text-sm px-5 py-2.5 rounded-xl hover:opacity-90 transition-all flex items-center gap-2">
           {saved ? <><Check className="w-4 h-4" /> Saved!</> : "Save Branding"}
         </button>
       </div>
