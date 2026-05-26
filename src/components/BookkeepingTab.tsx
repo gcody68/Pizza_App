@@ -1,10 +1,9 @@
 import { useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRestaurantSettings, useUpdateSettings } from "@/hooks/useRestaurantSettings";
+import { useShiftLogs, useStaff, type ShiftLog } from "@/hooks/useStaff";
 import {
   CreditCard, Banknote, TrendingUp, Download, Mail, ChevronDown,
-  Loader as Loader2, ArrowUpRight, ExternalLink, Scissors, ShoppingBag, Info,
+  Loader as Loader2, ArrowUpRight, ExternalLink, Scissors, ShoppingBag, Info, Clock,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -49,6 +48,42 @@ function formatDateLabel(iso: string): string {
   const [y, m, day] = iso.split("-").map(Number);
   const d = new Date(y, m - 1, day);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** Pair clock_in / clock_out events to calculate total hours per staff member */
+function computeShiftHours(logs: ShiftLog[]): Record<string, number> {
+  // Group by staff_id
+  const byStaff: Record<string, ShiftLog[]> = {};
+  for (const log of logs) {
+    if (!byStaff[log.staff_id]) byStaff[log.staff_id] = [];
+    byStaff[log.staff_id].push(log);
+  }
+  const result: Record<string, number> = {};
+  for (const [staffId, entries] of Object.entries(byStaff)) {
+    let total = 0;
+    let lastClockIn: Date | null = null;
+    for (const entry of entries) {
+      if (entry.event === "clock_in") {
+        lastClockIn = new Date(entry.logged_at);
+      } else if (entry.event === "clock_out" && lastClockIn) {
+        total += (new Date(entry.logged_at).getTime() - lastClockIn.getTime()) / 3_600_000;
+        lastClockIn = null;
+      }
+    }
+    // If still clocked in (no matching clock_out), count up to now
+    if (lastClockIn) {
+      total += (Date.now() - lastClockIn.getTime()) / 3_600_000;
+    }
+    result[staffId] = total;
+  }
+  return result;
+}
+
+function fmtHours(h: number): string {
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  if (hrs === 0) return `${mins}m`;
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
 // ── Preset range labels ───────────────────────────────────────────────────────
@@ -141,9 +176,9 @@ function MetricCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function BookkeepingTab({ restaurantId }: { restaurantId: string }) {
-  const qc = useQueryClient();
   const { data: settings } = useRestaurantSettings(restaurantId);
   const update = useUpdateSettings(restaurantId);
+  const { data: staffList = [] } = useStaff(restaurantId);
 
   const today = new Date();
   const [preset, setPreset] = useState(1); // index into PRESETS
@@ -157,6 +192,12 @@ export default function BookkeepingTab({ restaurantId }: { restaurantId: string 
   const startDate = addDays(today, -(selectedPreset.days - 1));
   const startIso = toISO(startDate);
   const endIso = toISO(today);
+
+  const { data: shiftLogs = [], isLoading: logsLoading } = useShiftLogs(restaurantId, startIso, endIso);
+
+  // Shift hours per staff_id
+  const shiftHours = useMemo(() => computeShiftHours(shiftLogs), [shiftLogs]);
+  const totalShiftHours = Object.values(shiftHours).reduce((s, h) => s + h, 0);
 
   // Use mock data until appointments are fully live
   const rows = useMemo(
@@ -409,6 +450,102 @@ export default function BookkeepingTab({ restaurantId }: { restaurantId: string 
         </div>
       </div>
 
+      {/* ── Payroll & Hours ── */}
+      <div className="space-y-4">
+        <div className="border-b border-border pb-2 flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payroll & Hours</h3>
+          {totalShiftHours > 0 && (
+            <span className="text-xs font-semibold text-gold bg-gold/10 border border-gold/20 px-2.5 py-0.5 rounded-full">
+              {fmtHours(totalShiftHours)} total
+            </span>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5">
+          {logsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : staffList.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              No staff profiles found. Add team members from the Calendar page.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {/* Column headers */}
+              <div className="flex items-center gap-3 px-0 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <div className="w-7 flex-shrink-0" />
+                <div className="flex-1">Stylist</div>
+                <div className="flex-shrink-0 text-right w-24">Active Hours</div>
+                <div className="flex-shrink-0 text-right w-16">Status</div>
+              </div>
+
+              {staffList.map((s, i) => {
+                const PALETTE = ["#C9A84C", "#7EB8B0", "#E07B7B", "#A07BD4", "#60A5FA", "#34D399", "#FB923C"];
+                const color = s.color ?? PALETTE[i % PALETTE.length];
+                const hours = shiftHours[s.id] ?? 0;
+                const maxHours = Math.max(...staffList.map((st) => shiftHours[st.id] ?? 0), 1);
+                const pct = (hours / maxHours) * 100;
+
+                return (
+                  <div key={s.id} className="flex items-center gap-3">
+                    {/* Avatar */}
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    >
+                      {s.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
+                    </div>
+
+                    {/* Name + bar */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-medium text-foreground truncate">{s.name}</p>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${pct}%`, backgroundColor: color }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Hours */}
+                    <p className={`text-xs font-bold flex-shrink-0 w-24 text-right ${hours > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>
+                      {hours > 0 ? fmtHours(hours) : "—"}
+                    </p>
+
+                    {/* Clock status */}
+                    <div className="flex-shrink-0 w-16 flex justify-end">
+                      <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        s.is_clocked_in
+                          ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-500"
+                          : "bg-secondary border-border text-muted-foreground"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.is_clocked_in ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                        {s.is_clocked_in ? "In" : "Out"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {totalShiftHours === 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
+                    <Clock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gold" />
+                    <p className="leading-relaxed">
+                      Hours are logged automatically each time a stylist is toggled{" "}
+                      <span className="text-foreground font-medium">On Floor</span>. No shifts recorded yet for this date range.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── Data Controls & Email Settings ── */}
       <div className="space-y-4">
         <div className="border-b border-border pb-2">
@@ -460,3 +597,6 @@ export default function BookkeepingTab({ restaurantId }: { restaurantId: string 
     </div>
   );
 }
+
+
+export default BookkeepingTab

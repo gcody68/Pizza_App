@@ -849,6 +849,8 @@ export default function CalendarBooking() {
   const [showAddService, setShowAddService] = useState(false);
   const [highlightBlock, setHighlightBlock] = useState<HighlightBlock | null>(null);
   const [showStaffPanel, setShowStaffPanel] = useState(false);
+  const [staffPanelFocusId, setStaffPanelFocusId] = useState<string | null>(null);
+  const [staffPanelFocusName, setStaffPanelFocusName] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -933,23 +935,46 @@ export default function CalendarBooking() {
         </div>
       </header>
 
-      {/* ── Staff Check-In slide-over panel ── */}
+      {/* ── Staff Management slide-over panel ── */}
       {showStaffPanel && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={() => setShowStaffPanel(false)} />
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
+            onClick={() => { setShowStaffPanel(false); setStaffPanelFocusId(null); setStaffPanelFocusName(null); }}
+          />
           <div className="relative w-full max-w-sm bg-card border-l border-border shadow-2xl flex flex-col overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 text-gold" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Staff Check-In</p>
-                  <p className="text-[11px] text-muted-foreground">Manage who is on shift today</p>
-                </div>
+                {staffPanelFocusName ? (() => {
+                  const s = stylists.find(st => st.name === staffPanelFocusName);
+                  return s ? (
+                    <>
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                        style={{ backgroundColor: s.avatarColor }}
+                      >
+                        {s.initials}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{s.name}</p>
+                        <p className="text-[11px] text-muted-foreground">Schedule & availability</p>
+                      </div>
+                    </>
+                  ) : null;
+                })() : (
+                  <>
+                    <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
+                      <UserCheck className="w-4 h-4 text-gold" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Team Management</p>
+                      <p className="text-[11px] text-muted-foreground">Schedules & availability</p>
+                    </div>
+                  </>
+                )}
               </div>
               <button
-                onClick={() => setShowStaffPanel(false)}
+                onClick={() => { setShowStaffPanel(false); setStaffPanelFocusId(null); setStaffPanelFocusName(null); }}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -957,7 +982,10 @@ export default function CalendarBooking() {
             </div>
             <div className="flex-1 px-5 py-5">
               {restaurantId ? (
-                <StaffCheckInWidget restaurantId={restaurantId} />
+                <StaffCheckInWidget
+                  restaurantId={restaurantId}
+                  initialExpandName={staffPanelFocusName}
+                />
               ) : (
                 <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
               )}
@@ -1196,7 +1224,11 @@ export default function CalendarBooking() {
                     <p className="text-xs font-semibold text-stone-800 truncate">{stylist.name.split(" ")[0]}</p>
                     <p className="text-[10px] text-stone-400 truncate hidden sm:block">{stylist.appointments.length} appts</p>
                   </div>
-                  <button className="ml-auto w-5 h-5 rounded-md flex items-center justify-center text-stone-300 hover:text-stone-500 hover:bg-stone-100 transition-colors flex-shrink-0">
+                  <button
+                    onClick={() => { setStaffPanelFocusId(stylist.id); setStaffPanelFocusName(stylist.name); setShowStaffPanel(true); }}
+                    className="ml-auto w-5 h-5 rounded-md flex items-center justify-center text-stone-300 hover:text-stone-600 hover:bg-stone-100 transition-colors flex-shrink-0"
+                    title={`Manage ${stylist.name.split(" ")[0]}'s schedule`}
+                  >
                     <MoreHorizontal className="w-3.5 h-3.5" />
                   </button>
                 </div>

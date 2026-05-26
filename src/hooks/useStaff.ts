@@ -83,10 +83,25 @@ export function useToggleClockIn() {
         .update({ is_clocked_in })
         .eq("id", id);
       if (error) throw error;
+
+      // Best-effort timecard log — fetch the staff row to get restaurant_id
+      const { data: staffRow } = await supabase
+        .from("staff_profiles")
+        .select("restaurant_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (staffRow?.restaurant_id) {
+        await supabase.from("shift_logs").insert({
+          staff_id: id,
+          restaurant_id: staffRow.restaurant_id,
+          event: is_clocked_in ? "clock_in" : "clock_out",
+        });
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staff"] });
       qc.invalidateQueries({ queryKey: ["staff-clocked-in"] });
+      qc.invalidateQueries({ queryKey: ["shift-logs"] });
     },
   });
 }
@@ -128,19 +143,34 @@ const PALETTE = [
 export function useCreateStaff() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ restaurant_id, name }: { restaurant_id: string; name: string }) => {
-      // Determine next color index based on existing staff count
-      const { data: existing } = await supabase
-        .from("staff_profiles")
-        .select("id")
-        .eq("restaurant_id", restaurant_id);
-      const colorIndex = (existing?.length ?? 0) % PALETTE.length;
-      const color = PALETTE[colorIndex];
+    mutationFn: async ({
+      restaurant_id,
+      name,
+      colorIndexHint,
+    }: {
+      restaurant_id: string;
+      name: string;
+      colorIndexHint?: number;
+    }): Promise<StaffProfile> => {
+      // Determine color from hint or query existing count
+      let colorIndex = colorIndexHint ?? 0;
+      if (colorIndexHint === undefined) {
+        const { data: existing } = await supabase
+          .from("staff_profiles")
+          .select("id")
+          .eq("restaurant_id", restaurant_id);
+        colorIndex = (existing?.length ?? 0) % PALETTE.length;
+      }
+      const color = PALETTE[colorIndex % PALETTE.length];
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("staff_profiles")
-        .insert({ restaurant_id, name, is_clocked_in: false, color, color_index: colorIndex });
+        .insert({ restaurant_id, name, is_clocked_in: false, color, color_index: colorIndex })
+        .select()
+        .single();
+
       if (error) throw new Error(error.message);
+      return data as StaffProfile;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["staff"] }),
   });
@@ -240,6 +270,37 @@ export function useDeleteStaffServiceDuration() {
       qc.invalidateQueries({ queryKey: ["staff-service-durations", vars.staff_id] });
       qc.invalidateQueries({ queryKey: ["available-slots"] });
     },
+  });
+}
+
+// ── Shift logs for payroll ────────────────────────────────────────────────────
+
+export type ShiftLog = {
+  id: string;
+  staff_id: string;
+  restaurant_id: string;
+  event: "clock_in" | "clock_out";
+  logged_at: string;
+};
+
+export function useShiftLogs(restaurantId: string | null | undefined, startIso: string, endIso: string) {
+  return useQuery({
+    queryKey: ["shift-logs", restaurantId, startIso, endIso],
+    queryFn: async () => {
+      if (!restaurantId) return [] as ShiftLog[];
+      const { data, error } = await supabase
+        .from("shift_logs")
+        .select("*")
+        .eq("restaurant_id", restaurantId)
+        .gte("logged_at", `${startIso}T00:00:00`)
+        .lte("logged_at", `${endIso}T23:59:59`)
+        .order("staff_id")
+        .order("logged_at");
+      if (error) throw error;
+      return (data ?? []) as ShiftLog[];
+    },
+    enabled: !!restaurantId,
+    staleTime: 60_000,
   });
 }
 
