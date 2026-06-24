@@ -20,7 +20,7 @@
 
 :root {
   font-family: var(--font-sans);
-  background-color: hsl(35, 25%, 97%);
+  background-color: #1a1a2e;
   color: hsl(20, 14%, 10%);
   -webkit-font-smoothing: antialiased;
 }

@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import "./index.css";
 import { ThemeProvider } from "./lib/themeContext";
 import { ServicesProvider } from "./lib/servicesContext";
+import CleaningApp from "./pages/CleaningApp";
 import Dashboard from "./pages/Dashboard";
 import CalendarBooking from "./pages/CalendarBooking";
 import PublicBooking from "./pages/PublicBooking";
@@ -20,7 +21,8 @@ createRoot(document.getElementById("root")!).render(
       <ThemeProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<PublicBooking />} />
+          <Route path="/" element={<CleaningApp />} />
+          <Route path="/booking" element={<PublicBooking />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/:tab" element={<Dashboard />} />
           <Route path="/calendar" element={<CalendarBooking />} />
